@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Curve Editor Demo - Nothing OS Style</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            color: white;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        
+        .curve-editor {
+            border: 1px solid #2F2F2F;
+            background: #000;
+            width: 400px;
+            height: 500px;
+        }
+        
+        .channel-selector {
+            height: 40px;
+            padding: 8px 16px;
+            border-bottom: 1px solid #2F2F2F;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .channel-btn {
+            width: 32px;
+            height: 24px;
+            border: 1px solid #2F2F2F;
+            background: transparent;
+            color: #aaa;
+            font-family: 'Courier New';
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .channel-btn.active {
+            border-color: #FF4444;
+            color: #FF4444;
+            background: rgba(255, 68, 68, 0.1);
+        }
+        
+        .reset-btn {
+            margin-left: auto;
+            padding: 4px 8px;
+            border: 1px solid #2F2F2F;
+            background: #000;
+            color: white;
+            font-family: 'Courier New';
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .pad-container {
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .control-pad {
+            width: 300px;
+            height: 300px;
+            border: 1px solid #2F2F2F;
+            position: relative;
+            background: #000;
+            cursor: crosshair;
+        }
+        
+        .grid-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        
+        .grid-line {
+            position: absolute;
+            background: rgba(47, 47, 47, 0.3);
+        }
+        
+        .grid-line.vertical {
+            width: 1px;
+            height: 100%;
+            top: 0;
+        }
+        
+        .grid-line.horizontal {
+            height: 1px;
+            width: 100%;
+            left: 0;
+        }
+        
+        .center-cross {
+            position: absolute;
+            background: rgba(47, 47, 47, 0.5);
+        }
+        
+        .center-cross.v {
+            width: 1px;
+            height: 100%;
+            left: 50%;
+            top: 0;
+        }
+        
+        .center-cross.h {
+            height: 1px;
+            width: 100%;
+            left: 0;
+            top: 50%;
+        }
+        
+        .control-circle {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #FF4444;
+            background: rgba(255, 68, 68, 0.6);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.1s ease;
+            cursor: grab;
+        }
+        
+        .control-circle:active {
+            cursor: grabbing;
+            transform: translate(-50%, -50%) scale(1.2);
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.3);
+        }
+        
+        .control-circle::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .guide-lines {
+            position: absolute;
+            pointer-events: none;
+        }
+        
+        .guide-line {
+            position: absolute;
+            background: rgba(255, 68, 68, 0.4);
+        }
+        
+        .guide-line.v {
+            width: 1px;
+            height: 100%;
+            top: 0;
+        }
+        
+        .guide-line.h {
+            height: 1px;
+            width: 100%;
+            left: 0;
+        }
+        
+        .axis-labels {
+            position: absolute;
+            font-size: 8px;
+            color: #666;
+            font-weight: bold;
+        }
+        
+        .axis-labels.bottom-left {
+            bottom: -20px;
+            left: -10px;
+        }
+        
+        .axis-labels.bottom-right {
+            bottom: -20px;
+            right: -20px;
+        }
+        
+        .axis-labels.top-left {
+            top: -15px;
+            left: -15px;
+            transform: rotate(-90deg);
+            transform-origin: left center;
+        }
+        
+        .axis-labels.bottom-left-v {
+            bottom: -15px;
+            left: -25px;
+            transform: rotate(-90deg);
+            transform-origin: right center;
+        }
+        
+        .parameters {
+            height: 60px;
+            padding: 16px;
+            border-top: 1px solid #2F2F2F;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .param-group {
+            text-align: left;
+        }
+        
+        .param-group:last-child {
+            text-align: right;
+        }
+        
+        .param-label {
+            font-size: 9px;
+            color: #666;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        
+        .param-value {
+            font-size: 14px;
+            color: #FF4444;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="curve-editor">
+        <!-- Channel Selector -->
+        <div class="channel-selector">
+            <button class="channel-btn active" data-channel="rgb">RGB</button>
+            <button class="channel-btn" data-channel="red">R</button>
+            <button class="channel-btn" data-channel="green">G</button>
+            <button class="channel-btn" data-channel="blue">B</button>
+            <button class="reset-btn">RESET</button>
+        </div>
+        
+        <!-- 2D Control Pad -->
+        <div class="pad-container">
+            <div class="control-pad" id="controlPad">
+                <!-- Grid -->
+                <div class="grid-lines">
+                    <div class="grid-line vertical" style="left: 20%"></div>
+                    <div class="grid-line vertical" style="left: 40%"></div>
+                    <div class="grid-line vertical" style="left: 60%"></div>
+                    <div class="grid-line vertical" style="left: 80%"></div>
+                    <div class="grid-line horizontal" style="top: 20%"></div>
+                    <div class="grid-line horizontal" style="top: 40%"></div>
+                    <div class="grid-line horizontal" style="top: 60%"></div>
+                    <div class="grid-line horizontal" style="top: 80%"></div>
+                </div>
+                
+                <!-- Center Cross -->
+                <div class="center-cross v"></div>
+                <div class="center-cross h"></div>
+                
+                <!-- Guide Lines -->
+                <div class="guide-lines" id="guideLines">
+                    <div class="guide-line v" id="guideV"></div>
+                    <div class="guide-line h" id="guideH"></div>
+                </div>
+                
+                <!-- Control Circle -->
+                <div class="control-circle" id="controlCircle" style="left: 50%; top: 50%;"></div>
+                
+                <!-- Axis Labels -->
+                <div class="axis-labels bottom-left">SHADOWS</div>
+                <div class="axis-labels bottom-right">HIGHLIGHTS</div>
+                <div class="axis-labels top-left">LIFT</div>
+                <div class="axis-labels bottom-left-v">GAIN</div>
+            </div>
+        </div>
+        
+        <!-- Parameter Display -->
+        <div class="parameters">
+            <div class="param-group">
+                <div class="param-label">SHADOWS</div>
+                <div class="param-value" id="shadowValue">0%</div>
+            </div>
+            <div class="param-group">
+                <div class="param-label">HIGHLIGHTS</div>
+                <div class="param-value" id="highlightValue">0%</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const pad = document.getElementById('controlPad');
+        const circle = document.getElementById('controlCircle');
+        const guideV = document.getElementById('guideV');
+        const guideH = document.getElementById('guideH');
+        const shadowValue = document.getElementById('shadowValue');
+        const highlightValue = document.getElementById('highlightValue');
+        const channelBtns = document.querySelectorAll('.channel-btn');
+        const resetBtn = document.querySelector('.reset-btn');
+        
+        let isDragging = false;
+        let currentChannel = 'rgb';
+        
+        function updatePosition(x, y) {
+            const rect = pad.getBoundingClientRect();
+            const normalizedX = Math.max(0, Math.min(1, x / rect.width));
+            const normalizedY = Math.max(0, Math.min(1, y / rect.height));
+            
+            // Update circle position
+            circle.style.left = (normalizedX * 100) + '%';
+            circle.style.top = (normalizedY * 100) + '%';
+            
+            // Update guide lines
+            guideV.style.left = (normalizedX * 100) + '%';
+            guideH.style.top = (normalizedY * 100) + '%';
+            
+            // Calculate parameter values
+            const shadowParam = ((normalizedX - 0.5) * 2 * 100).toFixed(0);
+            const highlightParam = (((1 - normalizedY) - 0.5) * 2 * 100).toFixed(0);
+            
+            shadowValue.textContent = shadowParam + '%';
+            highlightValue.textContent = highlightParam + '%';
+        }
+        
+        pad.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            const rect = pad.getBoundingClientRect();
+            updatePosition(e.clientX - rect.left, e.clientY - rect.top);
+            circle.classList.add('active');
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const rect = pad.getBoundingClientRect();
+            updatePosition(e.clientX - rect.left, e.clientY - rect.top);
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                circle.classList.remove('active');
+            }
+        });
+        
+        channelBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                channelBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentChannel = btn.dataset.channel;
+                
+                // Update colors based on channel
+                const colors = {
+                    rgb: '#FF4444',
+                    red: '#FF6666',
+                    green: '#66FF66',
+                    blue: '#6666FF'
+                };
+                
+                const color = colors[currentChannel];
+                circle.style.borderColor = color;
+                circle.style.background = color + '99';
+                document.querySelectorAll('.guide-line').forEach(line => {
+                    line.style.background = color + '66';
+                });
+                document.querySelectorAll('.param-value').forEach(val => {
+                    val.style.color = color;
+                });
+            });
+        });
+        
+        resetBtn.addEventListener('click', () => {
+            updatePosition(pad.offsetWidth / 2, pad.offsetHeight / 2);
+        });
+        
+        // Initialize
+        updatePosition(pad.offsetWidth / 2, pad.offsetHeight / 2);
+    </script>
+</body>
+</html>
