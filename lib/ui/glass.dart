@@ -13,18 +13,18 @@ class GlassSurface extends StatelessWidget {
     this.padding,
     this.margin,
   });
-  
+
   final Widget child;
   final double? tintOverride;
   final double borderRadius;
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
-  
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Container(
       margin: margin,
       child: ClipRRect(
@@ -42,16 +42,18 @@ class GlassSurface extends StatelessWidget {
                 child: Container(color: Colors.transparent),
               ),
             ),
-            
+
             // Nothing OS tint - very precise opacity
             Positioned.fill(
               child: ColoredBox(
-                color: isDark 
-                    ? SoftlightTheme.black.withOpacity(0.75)  // Deep black base
-                    : SoftlightTheme.white.withOpacity(0.85), // Clean white base
+                color: isDark
+                    ? SoftlightTheme.black.withOpacity(0.75) // Deep black base
+                    : SoftlightTheme.white.withOpacity(
+                        0.85,
+                      ), // Clean white base
               ),
             ),
-            
+
             // Nothing OS micro-texture (very subtle)
             Positioned.fill(
               child: CustomPaint(
@@ -62,14 +64,14 @@ class GlassSurface extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             // Nothing OS border - minimal and precise
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(borderRadius),
                   border: Border.all(
-                    color: isDark 
+                    color: isDark
                         ? SoftlightTheme.gray600.withOpacity(0.4)
                         : SoftlightTheme.gray300.withOpacity(0.6),
                     width: 0.33, // Nothing uses very thin borders
@@ -77,7 +79,7 @@ class GlassSurface extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             // Nothing OS subtle inner glow
             Positioned.fill(
               child: Container(
@@ -86,28 +88,31 @@ class GlassSurface extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: isDark ? [
-                      SoftlightTheme.white.withOpacity(0.04), // Very subtle highlight
-                      Colors.transparent,
-                      SoftlightTheme.black.withOpacity(0.08), // Subtle shadow
-                    ] : [
-                      SoftlightTheme.white.withOpacity(0.6),
-                      Colors.transparent,
-                      SoftlightTheme.gray200.withOpacity(0.3),
-                    ],
+                    colors: isDark
+                        ? [
+                            SoftlightTheme.white.withOpacity(
+                              0.04,
+                            ), // Very subtle highlight
+                            Colors.transparent,
+                            SoftlightTheme.black.withOpacity(
+                              0.08,
+                            ), // Subtle shadow
+                          ]
+                        : [
+                            SoftlightTheme.white.withOpacity(0.6),
+                            Colors.transparent,
+                            SoftlightTheme.gray200.withOpacity(0.3),
+                          ],
                     stops: const [0.0, 0.4, 1.0],
                   ),
                 ),
               ),
             ),
-            
+
             // Content
             if (padding != null)
               Positioned.fill(
-                child: Padding(
-                  padding: padding!,
-                  child: child,
-                ),
+                child: Padding(padding: padding!, child: child),
               )
             else
               child,
@@ -127,19 +132,22 @@ class GlassPillButton extends StatelessWidget {
     this.isSelected = false,
     this.width,
     this.height = 32.0,
+    this.accentColor,
   });
-  
+
   final VoidCallback? onPressed;
   final Widget child;
   final bool isSelected;
   final double? width;
   final double height;
-  
+  final Color? accentColor;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+    final accent = accentColor ?? SoftlightTheme.accentRed;
+
     return SizedBox(
       width: width,
       height: height,
@@ -147,14 +155,14 @@ class GlassPillButton extends StatelessWidget {
         onPressed: onPressed,
         style: TextButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          backgroundColor: isSelected 
-              ? SoftlightTheme.accentRed.withOpacity(0.15)
+          backgroundColor: isSelected
+              ? accent.withOpacity(0.15)
               : Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(height / 2),
             side: BorderSide(
-              color: isSelected 
-                  ? SoftlightTheme.accentRed.withOpacity(0.5)
+              color: isSelected
+                  ? accent.withOpacity(0.5)
                   : (isDark ? SoftlightTheme.gray600 : SoftlightTheme.gray300),
               width: 0.5,
             ),
@@ -162,8 +170,8 @@ class GlassPillButton extends StatelessWidget {
         ),
         child: DefaultTextStyle(
           style: theme.textTheme.labelMedium!.copyWith(
-            color: isSelected 
-                ? SoftlightTheme.accentRed
+            color: isSelected
+                ? accent
                 : (isDark ? SoftlightTheme.gray100 : SoftlightTheme.gray800),
           ),
           child: child,
@@ -182,17 +190,17 @@ class GlassIconButton extends StatelessWidget {
     this.isSelected = false,
     this.size = 40.0,
   });
-  
+
   final VoidCallback? onPressed;
   final IconData icon;
   final bool isSelected;
   final double size;
-  
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return SizedBox(
       width: size,
       height: size,
@@ -205,20 +213,22 @@ class GlassIconButton extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isSelected 
+              color: isSelected
                   ? SoftlightTheme.accentRed.withOpacity(0.15)
                   : Colors.transparent,
               border: Border.all(
-                color: isSelected 
+                color: isSelected
                     ? SoftlightTheme.accentRed.withOpacity(0.5)
-                    : (isDark ? SoftlightTheme.gray600 : SoftlightTheme.gray300),
+                    : (isDark
+                          ? SoftlightTheme.gray600
+                          : SoftlightTheme.gray300),
                 width: 0.5,
               ),
             ),
             child: Icon(
               icon,
               size: size * 0.5,
-              color: isSelected 
+              color: isSelected
                   ? SoftlightTheme.accentRed
                   : (isDark ? SoftlightTheme.gray100 : SoftlightTheme.gray800),
             ),
@@ -238,12 +248,12 @@ class GlassCard extends StatelessWidget {
     this.margin,
     this.borderRadius = 20.0,
   });
-  
+
   final Widget child;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
   final double borderRadius;
-  
+
   @override
   Widget build(BuildContext context) {
     return GlassSurface(
@@ -263,11 +273,11 @@ class GlassToolbar extends StatelessWidget {
     this.height = 64.0,
     this.padding = const EdgeInsets.symmetric(horizontal: 16),
   });
-  
+
   final List<Widget> children;
   final double height;
   final EdgeInsetsGeometry padding;
-  
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(

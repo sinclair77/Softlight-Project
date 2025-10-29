@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:softlightstudio/editor/presets_manager.dart';
 import 'package:softlightstudio/ui/theme.dart';
 import 'package:softlightstudio/editor/editor_state.dart';
 import 'package:softlightstudio/ui/knobs/knob.dart';
@@ -10,11 +12,28 @@ import 'package:softlightstudio/ui/panels/export_panel.dart';
 import 'package:softlightstudio/ui/panels/crop_panel.dart';
 import 'package:softlightstudio/ui/panels/filters_panel.dart';
 import 'package:softlightstudio/ui/panels/color_balance_panel.dart';
+import 'package:softlightstudio/ui/panels/settings_panel.dart';
 import 'package:softlightstudio/ui/histogram/draggable_histogram.dart';
 import 'package:softlightstudio/ui/widgets/animated_toggle.dart';
 import 'package:softlightstudio/ui/widgets/before_after_comparison.dart';
+import 'package:softlightstudio/ui/widgets/rule_of_thirds_overlay.dart';
+import 'package:softlightstudio/util/ui_debug_flags.dart';
 
-void main() {
+class _PanelShortcut {
+  const _PanelShortcut({
+    required this.id,
+    required this.icon,
+    required this.label,
+  });
+
+  final String id;
+  final IconData icon;
+  final String label;
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await PresetsManager.instance.loadPresets();
   runApp(const SoftlightStudioApp());
 }
 
@@ -38,16 +57,25 @@ class _SoftlightStudioAppState extends State<SoftlightStudioApp> {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (context) => EditorState(),
-      child: MaterialApp(
-        title: 'Softlight Studio',
-        debugShowCheckedModeBanner: false,
-        theme: isDarkMode ? SoftlightTheme.buildDarkTheme() : SoftlightTheme.buildLightTheme(),
-        home: HomePage(onToggleTheme: toggleTheme),
-        builder: (context, child) {
-          // Ensure fonts are loaded and provide fallback
-          return MediaQuery(
-            data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.0)),
-            child: child ?? Container(),
+      child: Consumer<EditorState>(
+        builder: (context, editorState, child) {
+          final accent = editorState.highlightColor;
+          return MaterialApp(
+            title: 'Softlight Studio',
+            debugShowCheckedModeBanner: false,
+            theme: isDarkMode
+                ? SoftlightTheme.buildDarkTheme(accent: accent)
+                : SoftlightTheme.buildLightTheme(accent: accent),
+            home: HomePage(onToggleTheme: toggleTheme),
+            builder: (context, child) {
+              // Ensure fonts are loaded and provide fallback
+              return MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: TextScaler.linear(1.0)),
+                child: child ?? Container(),
+              );
+            },
           );
         },
       ),
@@ -55,9 +83,83 @@ class _SoftlightStudioAppState extends State<SoftlightStudioApp> {
   }
 }
 
+class _DesktopSettingsDialog extends StatelessWidget {
+  const _DesktopSettingsDialog({required this.onToggleTheme});
+
+  final VoidCallback onToggleTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 48, vertical: 48),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 620),
+        decoration: BoxDecoration(
+          color: isDark
+              ? SoftlightTheme.gray900.withAlpha(245)
+              : SoftlightTheme.white.withAlpha(245),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray200,
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.35 : 0.2),
+              blurRadius: 40,
+              offset: const Offset(0, 20),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 12, right: 12),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                      splashRadius: 18,
+                      tooltip: 'Close settings',
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: isDark
+                            ? SoftlightTheme.gray400
+                            : SoftlightTheme.gray600,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SettingsPanel(onToggleTheme: onToggleTheme),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class HomePage extends StatefulWidget {
   final VoidCallback onToggleTheme;
-  
+
   const HomePage({super.key, required this.onToggleTheme});
 
   @override
@@ -66,7 +168,22 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String _selectedPanel = 'develop'; // develop, color, effects, detail
-  
+  bool _isMobilePanelOpen = false;
+
+  static const List<_PanelShortcut> _panelShortcuts = [
+    _PanelShortcut(id: 'presets', icon: Icons.auto_awesome, label: 'Presets'),
+    _PanelShortcut(id: 'crop', icon: Icons.crop, label: 'Crop'),
+    _PanelShortcut(
+      id: 'filters',
+      icon: Icons.filter_alt_outlined,
+      label: 'Filters',
+    ),
+    _PanelShortcut(id: 'develop', icon: Icons.tune, label: 'Develop'),
+    _PanelShortcut(id: 'color', icon: Icons.palette_outlined, label: 'Color'),
+    _PanelShortcut(id: 'effects', icon: Icons.blur_on, label: 'Effects'),
+    _PanelShortcut(id: 'detail', icon: Icons.grain, label: 'Detail'),
+  ];
+
   // Viewing options state
   bool _showHistogram = false;
   bool _showHighlightPeaking = false;
@@ -82,69 +199,168 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _openMobilePanel(String panelId) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (_selectedPanel == panelId && _isMobilePanelOpen) {
+        _isMobilePanelOpen = false;
+      } else {
+        _selectedPanel = panelId;
+        _isMobilePanelOpen = true;
+      }
+    });
+  }
+
+  void _closeMobilePanel() {
+    if (_isMobilePanelOpen) {
+      setState(() => _isMobilePanelOpen = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = context.watch<EditorState>().highlightColor;
 
     return Scaffold(
       backgroundColor: isDark ? SoftlightTheme.gray950 : SoftlightTheme.gray50,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return Consumer<EditorState>(
-              builder: (context, editorState, child) {
-                final useCompactLayout = constraints.maxWidth < 900;
+        child: Stack(
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Consumer<EditorState>(
+                  builder: (context, editorState, child) {
+                    final useCompactLayout = constraints.maxWidth < 900;
 
-                return Column(
-                  children: [
-                    _buildNothingHeader(isDark),
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                              child: _buildImageArea(editorState, isDark),
-                            ),
-                          ),
-                          if (useCompactLayout)
-                            _buildMobileEditingSheet(editorState, isDark)
-                          else
-                            Align(
-                              alignment: Alignment.bottomCenter,
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 720,
-                                    minHeight: 360,
-                                    maxHeight: 520,
+                    return Column(
+                      children: [
+                        _buildNothingHeader(isDark, accentColor),
+                        Expanded(
+                          child: useCompactLayout
+                              ? Column(
+                                  children: [
+                                    Expanded(
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          16,
+                                          16,
+                                          16,
+                                          16,
+                                        ),
+                                        child: _buildImageArea(editorState, isDark),
+                                      ),
+                                    ),
+                                    AnimatedSize(
+                                      duration: const Duration(milliseconds: 260),
+                                      curve: Curves.easeOutCubic,
+                                      child: _isMobilePanelOpen
+                                          ? Padding(
+                                              padding: const EdgeInsets.fromLTRB(
+                                                12,
+                                                0,
+                                                12,
+                                                12,
+                                              ),
+                                              child: _buildMobilePanel(
+                                                editorState,
+                                                isDark,
+                                              ),
+                                            )
+                                          : const SizedBox.shrink(),
+                                    ),
+                                    _buildMobileBottomBar(isDark, accentColor),
+                                  ],
+                                )
+                              : Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    16,
+                                    16,
+                                    16,
                                   ),
-                                  child: _buildEditingPanel(editorState, isDark),
+                                  child: Column(
+                                    children: [
+                                      Expanded(
+                                        child: _buildImageArea(editorState, isDark),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Align(
+                                        alignment: Alignment.center,
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 720,
+                                            minHeight: 360,
+                                            maxHeight: 520,
+                                          ),
+                                          child: _buildEditingPanel(
+                                            editorState,
+                                            isDark,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
+                        ),
+                      ],
+                    );
+                  },
                 );
               },
-            );
-          },
+            ),
+            if (showLayoutDebugging)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFE53935), Color(0xFFD81B60)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: const [
+                      Text(
+                        'UI DEBUG MODE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontFamily: 'Courier New',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Check the console for overflow warnings.',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10,
+                          fontFamily: 'Courier New',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildNothingHeader(bool isDark) {
+  Widget _buildNothingHeader(bool isDark, Color accent) {
     return Container(
       height: 64,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: isDark 
+          colors: isDark
               ? [SoftlightTheme.gray800, SoftlightTheme.gray900]
               : [SoftlightTheme.white, SoftlightTheme.gray50],
         ),
@@ -165,7 +381,7 @@ class _HomePageState extends State<HomePage> {
                   width: 6,
                   height: 6,
                   decoration: BoxDecoration(
-                    color: SoftlightTheme.accentRed,
+                    color: accent,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -176,7 +392,9 @@ class _HomePageState extends State<HomePage> {
                     fontFamily: 'Courier New',
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? SoftlightTheme.white : SoftlightTheme.gray900,
+                    color: isDark
+                        ? SoftlightTheme.white
+                        : SoftlightTheme.gray900,
                     letterSpacing: 2.8,
                   ),
                 ),
@@ -222,13 +440,23 @@ class _HomePageState extends State<HomePage> {
         gradient: LinearGradient(
           begin: const Alignment(-0.6, -0.7),
           end: const Alignment(0.6, 0.7),
-          colors: isDark 
-              ? [SoftlightTheme.gray700, SoftlightTheme.gray800, SoftlightTheme.gray900]
-              : [SoftlightTheme.white, SoftlightTheme.gray50, SoftlightTheme.gray100],
+          colors: isDark
+              ? [
+                  SoftlightTheme.gray700,
+                  SoftlightTheme.gray800,
+                  SoftlightTheme.gray900,
+                ]
+              : [
+                  SoftlightTheme.white,
+                  SoftlightTheme.gray50,
+                  SoftlightTheme.gray100,
+                ],
         ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDark ? SoftlightTheme.gray700.withOpacity(0.8) : SoftlightTheme.gray300.withOpacity(0.8),
+          color: isDark
+              ? SoftlightTheme.gray700.withOpacity(0.8)
+              : SoftlightTheme.gray300.withOpacity(0.8),
           width: 0.5,
         ),
       ),
@@ -239,51 +467,74 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildImageDisplay(EditorState editorState) {
+    final displayImage = editorState.displayImage;
+    final originalImage = editorState.sourceImage?.image;
+    final processedImage = editorState.processedImage;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Widget buildImageContent() {
+      if (displayImage == null) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      final imageWidth = displayImage.width.toDouble();
+      final imageHeight = displayImage.height.toDouble();
+
+      final baseContent =
+          _showBeforeAfter && originalImage != null && processedImage != null
+          ? BeforeAfterComparison(
+              originalImage: RawImage(image: originalImage, fit: BoxFit.cover),
+              processedImage: RawImage(
+                image: processedImage,
+                fit: BoxFit.cover,
+              ),
+            )
+          : RawImage(image: displayImage, fit: BoxFit.cover);
+
+      return FittedBox(
+        fit: BoxFit.contain,
+        child: SizedBox(
+          width: imageWidth,
+          height: imageHeight,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              baseContent,
+              if (_showGridView)
+                IgnorePointer(
+                  child: RuleOfThirdsOverlay(
+                    color: editorState.highlightColor,
+                    opacity: isDark ? 0.55 : 0.4,
+                    lineWidth: 1.2,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Stack(
         children: [
-          // Before/After comparison or regular image
-          if (_showBeforeAfter && editorState.sourceImage?.image != null && editorState.processedImage != null)
-            BeforeAfterComparison(
-              originalImage: RawImage(
-                image: editorState.sourceImage!.image,
-                fit: BoxFit.contain,
-              ),
-              processedImage: RawImage(
-                image: editorState.processedImage!,
-                fit: BoxFit.contain,
-              ),
-            )
-          else
-            Center(
-              child: editorState.displayImage != null
-                  ? RawImage(
-                      image: editorState.displayImage,
-                      fit: BoxFit.contain,
-                    )
-                  : const CircularProgressIndicator(),
+          Positioned.fill(
+            child: Container(
+              color: isDark
+                  ? SoftlightTheme.gray950.withOpacity(0.6)
+                  : SoftlightTheme.gray50,
+              child: Center(child: buildImageContent()),
             ),
-          
+          ),
           if (editorState.isProcessing)
             Container(
               color: Colors.black.withOpacity(0.3),
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: const Center(child: CircularProgressIndicator()),
             ),
-          
-          // Before/After toggle button
-          if (editorState.displayImage != null)
-            Positioned(
-              top: 16,
-              right: 16,
-              child: _buildBeforeAfterButton(),
-            ),
-          
-          // Draggable Histogram Overlay
+          if (displayImage != null)
+            Positioned(top: 16, right: 16, child: _buildBeforeAfterButton()),
           DraggableHistogram(
-            image: editorState.displayImage,
+            image: displayImage,
             isVisible: _showHistogram,
             onClose: () => setState(() => _showHistogram = false),
           ),
@@ -295,6 +546,7 @@ class _HomePageState extends State<HomePage> {
   Widget _buildImagePlaceholder(EditorState editorState, bool isDark) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final accent = editorState.highlightColor;
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: ConstrainedBox(
@@ -312,14 +564,18 @@ class _HomePageState extends State<HomePage> {
                           : SoftlightTheme.gray200.withAlpha(120),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isDark ? SoftlightTheme.gray600 : SoftlightTheme.gray300,
+                        color: isDark
+                            ? SoftlightTheme.gray600
+                            : SoftlightTheme.gray300,
                         width: 1,
                       ),
                     ),
                     child: Icon(
                       Icons.add_photo_alternate_outlined,
                       size: 48,
-                      color: isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
+                      color: isDark
+                          ? SoftlightTheme.gray400
+                          : SoftlightTheme.gray600,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -329,7 +585,9 @@ class _HomePageState extends State<HomePage> {
                       fontFamily: 'Courier New',
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: isDark ? SoftlightTheme.gray200 : SoftlightTheme.gray800,
+                      color: isDark
+                          ? SoftlightTheme.gray200
+                          : SoftlightTheme.gray800,
                       letterSpacing: 2.0,
                     ),
                   ),
@@ -339,7 +597,9 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(
                       fontFamily: 'Courier New',
                       fontSize: 12,
-                      color: isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
+                      color: isDark
+                          ? SoftlightTheme.gray400
+                          : SoftlightTheme.gray600,
                       letterSpacing: 1.2,
                     ),
                   ),
@@ -351,10 +611,13 @@ class _HomePageState extends State<HomePage> {
                       icon: const Icon(Icons.upload_file, size: 20),
                       label: const Text('CHOOSE FROM DEVICE'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: SoftlightTheme.accentRed,
+                        backgroundColor: accent,
                         foregroundColor: Colors.white,
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 16,
+                        ),
                         textStyle: const TextStyle(
                           fontFamily: 'Courier New',
                           fontSize: 14,
@@ -366,35 +629,6 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => editorState.loadPlaceholder(),
-                          icon: const Icon(Icons.image_outlined, size: 16),
-                          label: const Text('DEMO'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: isDark ? SoftlightTheme.gray300 : SoftlightTheme.gray700,
-                            side: BorderSide(
-                              color: isDark ? SoftlightTheme.gray600 : SoftlightTheme.gray400,
-                              width: 1,
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            textStyle: const TextStyle(
-                              fontFamily: 'Courier New',
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.2,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -459,76 +693,189 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildMobileEditingSheet(EditorState editorState, bool isDark) {
-    return DraggableScrollableSheet(
-      minChildSize: 0.32,
-      initialChildSize: 0.42,
-      maxChildSize: 0.92,
-      builder: (context, controller) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: SafeArea(
-            top: false,
-            child: _buildEditingPanel(
-              editorState,
-              isDark,
-              scrollController: controller,
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildBeforeAfterButton() {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        setState(() {
-          _showBeforeAfter = !_showBeforeAfter;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: (_showBeforeAfter 
-              ? SoftlightTheme.accentRed.withOpacity(0.9)
-              : SoftlightTheme.black.withOpacity(0.7)),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: _showBeforeAfter
-                ? SoftlightTheme.accentRed
-                : SoftlightTheme.gray600,
-            width: 0.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+  Widget _buildMobilePanel(EditorState editorState, bool isDark) {
+    final accent = editorState.highlightColor;
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark
+            ? SoftlightTheme.gray900.withOpacity(0.95)
+            : Colors.white.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray200,
+          width: 1,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.32 : 0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.compare_arrows_rounded,
-              size: 16,
-              color: SoftlightTheme.white,
+            Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  _panelTitle(_selectedPanel),
+                  style: TextStyle(
+                    fontFamily: 'Courier New',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.4,
+                    color: isDark
+                        ? SoftlightTheme.white
+                        : SoftlightTheme.gray900,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  splashRadius: 20,
+                  icon: Icon(
+                    Icons.close_rounded,
+                    size: 20,
+                    color: isDark
+                        ? SoftlightTheme.gray400
+                        : SoftlightTheme.gray600,
+                  ),
+                  onPressed: _closeMobilePanel,
+                ),
+              ],
             ),
-            const SizedBox(width: 6),
-            Text(
-              _showBeforeAfter ? 'COMPARING' : 'COMPARE',
-              style: TextStyle(
-                fontSize: 9,
-                fontFamily: 'Courier New',
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.0,
-                color: SoftlightTheme.white,
+            const SizedBox(height: 16),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 240),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: SingleChildScrollView(
+                  key: ValueKey<String>('mobile-$_selectedPanel'),
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildPanelBody(_selectedPanel, editorState, isDark),
+                ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileBottomBar(bool isDark, Color accent) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+        child: SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? SoftlightTheme.gray900.withOpacity(0.9)
+                  : Colors.white.withOpacity(0.94),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray200,
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(isDark ? 0.35 : 0.2),
+                  blurRadius: 22,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: _panelShortcuts.map((shortcut) {
+                  final isSelected =
+                      _selectedPanel == shortcut.id && _isMobilePanelOpen;
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: GestureDetector(
+                      onTap: () => _openMobilePanel(shortcut.id),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected ? accent : Colors.transparent,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: isSelected
+                                ? accent
+                                : (isDark
+                                      ? SoftlightTheme.gray700
+                                      : SoftlightTheme.gray300),
+                            width: isSelected ? 1.0 : 0.7,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: accent.withOpacity(0.35),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              shortcut.icon,
+                              size: 18,
+                              color: isSelected
+                                  ? SoftlightTheme.white
+                                  : (isDark
+                                        ? SoftlightTheme.gray300
+                                        : SoftlightTheme.gray600),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              shortcut.label.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontFamily: 'Courier New',
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.2,
+                                color: isSelected
+                                    ? SoftlightTheme.white
+                                    : (isDark
+                                          ? SoftlightTheme.gray400
+                                          : SoftlightTheme.gray700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -584,7 +931,9 @@ class _HomePageState extends State<HomePage> {
                 letterSpacing: 1.2,
                 color: isSelected
                     ? (isDark ? Colors.white : SoftlightTheme.gray900)
-                    : (isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600),
+                    : (isDark
+                          ? SoftlightTheme.gray400
+                          : SoftlightTheme.gray600),
               ),
             ),
           ),
@@ -594,42 +943,101 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildEditingContent(EditorState editorState, bool isDark) {
-    Widget panelContent;
-    
-    switch (_selectedPanel) {
-      case 'presets':
-        panelContent = const PresetsPanel();
-        break;
-      case 'crop':
-        panelContent = const CropPanel();
-        break;
-      case 'filters':
-        panelContent = const FiltersPanel();
-        break;
-      case 'develop':
-        panelContent = _buildDevelopPanel(editorState, isDark);
-        break;
-      case 'color':
-        panelContent = _buildColorPanel(editorState, isDark);
-        break;
-      case 'effects':
-        panelContent = _buildEffectsPanel(editorState, isDark);
-        break;
-      case 'detail':
-        panelContent = _buildDetailPanel(editorState, isDark);
-        break;
-      default:
-        panelContent = _buildDevelopPanel(editorState, isDark);
-        break;
-    }
-
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 280),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       child: KeyedSubtree(
         key: ValueKey<String>(_selectedPanel),
-        child: panelContent,
+        child: _buildPanelBody(_selectedPanel, editorState, isDark),
+      ),
+    );
+  }
+
+  String _panelTitle(String panelId) {
+    switch (panelId) {
+      case 'presets':
+        return 'PRESETS';
+      case 'crop':
+        return 'CROP';
+      case 'filters':
+        return 'FILTERS';
+      case 'color':
+        return 'COLOR';
+      case 'effects':
+        return 'EFFECTS';
+      case 'detail':
+        return 'DETAIL';
+      case 'develop':
+      default:
+        return 'DEVELOP';
+    }
+  }
+
+  Widget _buildPanelBody(String panelId, EditorState editorState, bool isDark) {
+    switch (panelId) {
+      case 'presets':
+        return const PresetsPanel();
+      case 'crop':
+        return const CropPanel();
+      case 'filters':
+        return const FiltersPanel();
+      case 'color':
+        return _buildColorPanel(editorState, isDark);
+      case 'effects':
+        return _buildEffectsPanel(editorState, isDark);
+      case 'detail':
+        return _buildDetailPanel(editorState, isDark);
+      case 'develop':
+      default:
+        return _buildDevelopPanel(editorState, isDark);
+    }
+  }
+
+  Widget _buildBeforeAfterButton() {
+    final isActive = _showBeforeAfter;
+    final accent = context.read<EditorState>().highlightColor;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        setState(() => _showBeforeAfter = !_showBeforeAfter);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive
+              ? accent.withOpacity(0.9)
+              : SoftlightTheme.black.withOpacity(0.7),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isActive ? accent : SoftlightTheme.gray600,
+            width: 0.6,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.22),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.compare_arrows_rounded, size: 16, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(
+              isActive ? 'COMPARING' : 'COMPARE',
+              style: const TextStyle(
+                fontSize: 9,
+                fontFamily: 'Courier New',
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.0,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -651,7 +1059,13 @@ class _HomePageState extends State<HomePage> {
         _buildKnobSection(
           title: 'COLOR',
           knobs: [
-            _buildMobileKnob('TEMP', 'temperature', 2000.0, 12000.0, editorState),
+            _buildMobileKnob(
+              'TEMP',
+              'temperature',
+              2000.0,
+              12000.0,
+              editorState,
+            ),
             _buildMobileKnob('TINT', 'tint', -1.0, 1.0, editorState),
             _buildMobileKnob('SAT', 'saturation', -1.0, 1.0, editorState),
             _buildMobileKnob('VIB', 'vibrance', -1.0, 1.0, editorState),
@@ -672,7 +1086,13 @@ class _HomePageState extends State<HomePage> {
           knobs: [
             _buildMobileKnob('CLARITY', 'clarity', -1.0, 1.0, editorState),
             _buildMobileKnob('DEHAZE', 'dehaze', -1.0, 1.0, editorState),
-            _buildMobileKnob('VIGNETTE', 'vignetteAmount', 0.0, 1.0, editorState),
+            _buildMobileKnob(
+              'VIGNETTE',
+              'vignetteAmount',
+              0.0,
+              1.0,
+              editorState,
+            ),
             _buildMobileKnob('GRAIN', 'grain', 0.0, 1.0, editorState),
           ],
           isDark: isDark,
@@ -720,7 +1140,13 @@ class _HomePageState extends State<HomePage> {
         _buildKnobSection(
           title: 'COLOR BALANCE',
           knobs: [
-            _buildMobileKnob('TEMP', 'temperature', 2000.0, 12000.0, editorState),
+            _buildMobileKnob(
+              'TEMP',
+              'temperature',
+              2000.0,
+              12000.0,
+              editorState,
+            ),
             _buildMobileKnob('TINT', 'tint', -1.0, 1.0, editorState),
             _buildMobileKnob('R/S', 'redShadows', -1.0, 1.0, editorState),
             _buildMobileKnob('G/S', 'greenShadows', -1.0, 1.0, editorState),
@@ -755,41 +1181,86 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-          Row(
-            children: knobs.map((knob) => Expanded(child: knob)).toList(),
-          ),
+          Row(children: knobs.map((knob) => Expanded(child: knob)).toList()),
           const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  Widget _buildMobileKnob(String label, String param, double min, double max, EditorState editorState) {
+  Widget _buildMobileKnob(
+    String label,
+    String param,
+    double min,
+    double max,
+    EditorState editorState,
+  ) {
     return Consumer<EditorState>(
       builder: (context, state, child) {
         double value;
         switch (param) {
-          case 'exposure': value = state.params.exposure; break;
-          case 'contrast': value = state.params.contrast; break;
-          case 'highlights': value = state.params.highlights; break;
-          case 'shadows': value = state.params.shadows; break;
-          case 'temperature': value = state.params.temperature; break;
-          case 'tint': value = state.params.tint; break;
-          case 'saturation': value = state.params.saturation; break;
-          case 'vibrance': value = state.params.vibrance; break;
-          case 'clarity': value = state.params.clarity; break;
-          case 'dehaze': value = state.params.dehaze; break;
-          case 'vignetteAmount': value = state.params.vignetteAmount; break;
-          case 'grain': value = state.params.grain; break;
-          case 'sharpening': value = state.params.sharpening; break;
-          case 'noiseReduction': value = state.params.noiseReduction; break;
-          case 'texture': value = state.params.texture; break;
-          case 'bloomIntensity': value = state.params.bloomIntensity; break;
-          case 'hue': value = state.params.hue; break;
-          case 'brightness': value = state.params.brightness; break;
-          case 'redShadows': value = state.params.redShadows; break;
-          case 'greenShadows': value = state.params.greenShadows; break;
-          default: value = 0.0;
+          case 'exposure':
+            value = state.params.exposure;
+            break;
+          case 'contrast':
+            value = state.params.contrast;
+            break;
+          case 'highlights':
+            value = state.params.highlights;
+            break;
+          case 'shadows':
+            value = state.params.shadows;
+            break;
+          case 'temperature':
+            value = state.params.temperature;
+            break;
+          case 'tint':
+            value = state.params.tint;
+            break;
+          case 'saturation':
+            value = state.params.saturation;
+            break;
+          case 'vibrance':
+            value = state.params.vibrance;
+            break;
+          case 'clarity':
+            value = state.params.clarity;
+            break;
+          case 'dehaze':
+            value = state.params.dehaze;
+            break;
+          case 'vignetteAmount':
+            value = state.params.vignetteAmount;
+            break;
+          case 'grain':
+            value = state.params.grain;
+            break;
+          case 'sharpening':
+            value = state.params.sharpening;
+            break;
+          case 'noiseReduction':
+            value = state.params.noiseReduction;
+            break;
+          case 'texture':
+            value = state.params.texture;
+            break;
+          case 'bloomIntensity':
+            value = state.params.bloomIntensity;
+            break;
+          case 'hue':
+            value = state.params.hue;
+            break;
+          case 'brightness':
+            value = state.params.brightness;
+            break;
+          case 'redShadows':
+            value = state.params.redShadows;
+            break;
+          case 'greenShadows':
+            value = state.params.greenShadows;
+            break;
+          default:
+            value = 0.0;
         }
 
         // Create a parameter definition for the knob
@@ -802,7 +1273,7 @@ class _HomePageState extends State<HomePage> {
           precision: 2,
           unit: param == 'temperature' ? 'K' : '',
         );
-        
+
         return ParameterKnob(
           paramDef: paramDef,
           value: value,
@@ -817,14 +1288,14 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildViewingOptionsPanel() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Container(
       height: 200,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: const Alignment(-0.3, -0.4),
           end: const Alignment(0.3, 0.4),
-          colors: isDark 
+          colors: isDark
               ? [
                   SoftlightTheme.gray800,
                   SoftlightTheme.gray900,
@@ -854,7 +1325,7 @@ class _HomePageState extends State<HomePage> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          
+
           // Title
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
@@ -863,7 +1334,9 @@ class _HomePageState extends State<HomePage> {
                 Icon(
                   Icons.visibility_outlined,
                   size: 18,
-                  color: isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
+                  color: isDark
+                      ? SoftlightTheme.gray400
+                      : SoftlightTheme.gray600,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -873,13 +1346,15 @@ class _HomePageState extends State<HomePage> {
                     fontFamily: 'Courier New',
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.2,
-                    color: isDark ? SoftlightTheme.white : SoftlightTheme.gray900,
+                    color: isDark
+                        ? SoftlightTheme.white
+                        : SoftlightTheme.gray900,
                   ),
                 ),
               ],
             ),
           ),
-          
+
           // Viewing options
           Expanded(
             child: Padding(
@@ -938,7 +1413,9 @@ class _HomePageState extends State<HomePage> {
                     fontFamily: 'Courier New',
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.8,
-                    color: isDark ? SoftlightTheme.white : SoftlightTheme.gray900,
+                    color: isDark
+                        ? SoftlightTheme.white
+                        : SoftlightTheme.gray900,
                   ),
                 ),
                 Text(
@@ -948,7 +1425,9 @@ class _HomePageState extends State<HomePage> {
                     fontFamily: 'Courier New',
                     fontWeight: FontWeight.w400,
                     letterSpacing: 0.5,
-                    color: isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
+                    color: isDark
+                        ? SoftlightTheme.gray400
+                        : SoftlightTheme.gray600,
                   ),
                 ),
               ],
@@ -979,6 +1458,24 @@ class _HomePageState extends State<HomePage> {
 
   /// Show settings dialog
   void _showSettingsDialog(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final useDesktopDialog =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux ||
+            defaultTargetPlatform == TargetPlatform.windows);
+
+    if (useDesktopDialog) {
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        barrierColor: Colors.black.withOpacity(isDark ? 0.45 : 0.25),
+        builder: (dialogContext) =>
+            _DesktopSettingsDialog(onToggleTheme: widget.onToggleTheme),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -989,147 +1486,51 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildModalSettingsPanel() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return Consumer<EditorState>(
-      builder: (context, editorState, child) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.7,
-          decoration: BoxDecoration(
-            color: isDark ? SoftlightTheme.gray900.withAlpha(250) : SoftlightTheme.white.withAlpha(250),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border.all(
-              color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray200,
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(isDark ? 150 : 80),
-                blurRadius: 30,
-                offset: const Offset(0, -10),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // Handle bar
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark ? SoftlightTheme.gray600 : SoftlightTheme.gray400,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              
-              // Settings header
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: SoftlightTheme.accentRed,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'SETTINGS',
-                      style: TextStyle(
-                        fontFamily: 'Courier New',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? SoftlightTheme.white : SoftlightTheme.gray900,
-                        letterSpacing: 2.0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Settings content with theme toggle
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'THEME',
-                        style: TextStyle(
-                          fontFamily: 'Courier New',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: isDark ? SoftlightTheme.gray800 : SoftlightTheme.gray100,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray300,
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            _buildThemeOption('LIGHT', !isDark, () => widget.onToggleTheme(), editorState),
-                            _buildThemeOption('DARK', isDark, () => widget.onToggleTheme(), editorState),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
-  Widget _buildThemeOption(String label, bool isSelected, VoidCallback onTap, EditorState editorState) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected 
-                ? editorState.highlightColor.withOpacity(0.1)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-            border: isSelected
-                ? Border.all(
-                    color: editorState.highlightColor,
-                    width: 0.5,
-                  )
-                : null,
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      decoration: BoxDecoration(
+        color: isDark
+            ? SoftlightTheme.gray900.withAlpha(250)
+            : SoftlightTheme.white.withAlpha(250),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: Border.all(
+          color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray200,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(isDark ? 150 : 80),
+            blurRadius: 30,
+            offset: const Offset(0, -10),
           ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Courier New',
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: isSelected 
-                    ? (isDark ? SoftlightTheme.white : SoftlightTheme.gray900)
-                    : (isDark ? SoftlightTheme.gray500 : SoftlightTheme.gray600),
-                letterSpacing: 1.2,
+        ],
+      ),
+      child: Column(
+        children: [
+          // Handle bar
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: isDark ? SoftlightTheme.gray600 : SoftlightTheme.gray400,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              bottom: true,
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 24),
+                child: SettingsPanel(onToggleTheme: widget.onToggleTheme),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
