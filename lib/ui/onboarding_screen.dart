@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:softlightstudio/models/subscription_state.dart';
 import 'package:softlightstudio/ui/theme.dart';
+import 'package:softlightstudio/ui/animations/animations.dart';
 
 /// Onboarding flow screen
 class OnboardingScreen extends StatefulWidget {
@@ -54,8 +55,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _nextPage() {
     if (_currentPage < _pages.length - 1) {
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
+        duration: NothingDurations.medium,
+        curve: NothingCurves.entrance,
       );
     } else {
       _showSubscriptionDialog();
@@ -87,7 +88,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Row(
                 children: List.generate(_pages.length, (index) {
                   return Expanded(
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: NothingDurations.standard,
+                      curve: NothingCurves.entrance,
                       height: 3,
                       margin: EdgeInsets.only(
                         left: index == 0 ? 0 : 4,

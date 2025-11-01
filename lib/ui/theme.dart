@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 class SoftlightTheme {
   // Nothing OS signature colors - exact matches from the reference
   static const Color accentRed = Color(0xFFFF4444);  // Nothing's precise red
+  static const Color nothingRed = accentRed;  // Alias for consistency
   static const Color accentYellow = Color(0xFFFFCC02);
   static const Color accentWhite = Color(0xFFFFFFFF);
   

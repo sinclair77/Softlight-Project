@@ -5,6 +5,7 @@ import 'package:softlightstudio/ui/glass.dart';
 import 'package:softlightstudio/ui/theme.dart';
 import 'package:softlightstudio/editor/editor_state.dart';
 import 'package:softlightstudio/util/layout.dart';
+import 'package:softlightstudio/ui/animations/animations.dart';
 
 class _AccentOption {
   const _AccentOption(this.label, this.color);

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:softlightstudio/ui/theme.dart';
 import 'package:softlightstudio/editor/editor_state.dart';
 import 'package:softlightstudio/editor/presets_manager.dart';
+import 'package:softlightstudio/ui/animations/animations.dart';
 
 /// Professional presets panel for mobile photo editing
 class PresetsPanel extends StatefulWidget {
@@ -22,12 +23,12 @@ class _PresetsPanelState extends State<PresetsPanel> with TickerProviderStateMix
   void initState() {
     super.initState();
     _slideController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: NothingDurations.medium,
       vsync: this,
     );
     _slideAnimation = CurvedAnimation(
       parent: _slideController,
-      curve: Curves.easeOutCubic,
+      curve: NothingCurves.entrance,
     );
     _slideController.forward();
   }
