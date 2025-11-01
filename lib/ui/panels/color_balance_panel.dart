@@ -119,22 +119,24 @@ class _ColorBalancePanelState extends State<ColorBalancePanel> {
     
     // Convert HSL to position on color wheel (160x160 wheel)
     final wheelRadius = 80.0; // Half of 160px wheel (center point)
+    final maxRadius = 70.0; // Max distance from center (updated to match interaction)
     
     // FORCE dots to center when no adjustment is made
     double dotX, dotY;
-    if (saturation == 0.0 && hue == 0.0) {
+    if (saturation < 0.01 && hue.abs() < 1.0) {
       // Perfect center when no color grading applied
       dotX = wheelRadius;
       dotY = wheelRadius;
     } else {
       // Calculate position based on HSL values
-      final maxRadius = 65.0; // Max distance from center
-      final distance = saturation * maxRadius; // Distance from center
+      // Account for the dead zone in saturation calculation
+      final effectiveSaturation = saturation * 0.857; // (maxRadius - 10) / maxRadius
+      final distance = effectiveSaturation * maxRadius + (saturation > 0 ? 10.0 : 0);
       final hueRad = hue * math.pi / 180.0; // Convert degrees to radians
       
       // Calculate actual pixel position from center of wheel
-      dotX = wheelRadius + (distance * math.cos(hueRad)); // Center + offset
-      dotY = wheelRadius + (distance * math.sin(hueRad)); // Center + offset
+      dotX = wheelRadius + (distance * math.cos(hueRad));
+      dotY = wheelRadius + (distance * math.sin(hueRad));
     }
     
     return GestureDetector(
@@ -278,7 +280,7 @@ class _ColorBalancePanelState extends State<ColorBalancePanel> {
   void _updateColorWheelValue(Offset localPosition, String tone) {
     // Accurate color wheel interaction (160x160 wheel)
     final wheelRadius = 80.0; // Wheel center point (160/2)
-    final maxRadius = 65.0; // Max distance for interaction
+    final maxRadius = 70.0; // Max distance for interaction (slightly increased)
     
     // Calculate offset from center of wheel
     final deltaX = localPosition.dx - wheelRadius;
@@ -287,34 +289,37 @@ class _ColorBalancePanelState extends State<ColorBalancePanel> {
     // Calculate distance from center
     final rawDistance = math.sqrt(deltaX * deltaX + deltaY * deltaY);
     
-    // Only update if within wheel bounds
-    if (rawDistance <= maxRadius) {
-      // Calculate angle (hue) in degrees
-      final angle = math.atan2(deltaY, deltaX) * 180.0 / math.pi;
-      final hue = angle.clamp(-180.0, 180.0); // Keep in ±180° range
-      
-      // Calculate saturation (0 at center, 1 at max radius)
-      final saturation = (rawDistance / maxRadius).clamp(0.0, 1.0);
-      
-      // Update HSL parameters for the selected tonal range
-      switch (tone) {
-        case 'shadows':
-          widget.editorState.updateParam('shadowsHue', hue);
-          widget.editorState.updateParam('shadowsSaturation', saturation);
-          break;
-        case 'midtones':
-          widget.editorState.updateParam('midtonesHue', hue);
-          widget.editorState.updateParam('midtonesSaturation', saturation);
-          break;
-        case 'highlights':
-          widget.editorState.updateParam('highlightsHue', hue);
-          widget.editorState.updateParam('highlightsSaturation', saturation);
-          break;
-      }
-      
-      setState(() {});
-      HapticFeedback.lightImpact(); // Subtle feedback during drag
+    // Clamp distance to max radius for better edge handling
+    final clampedDistance = rawDistance.clamp(0.0, maxRadius);
+    
+    // Calculate angle (hue) in degrees (-180 to 180)
+    final angle = math.atan2(deltaY, deltaX) * 180.0 / math.pi;
+    final hue = angle.clamp(-180.0, 180.0);
+    
+    // Calculate saturation (0 at center, 1 at max radius)
+    // Add dead zone at center for easier reset to neutral
+    final saturation = clampedDistance < 10.0 
+        ? 0.0 
+        : ((clampedDistance - 10.0) / (maxRadius - 10.0)).clamp(0.0, 1.0);
+    
+    // Update HSL parameters for the selected tonal range
+    switch (tone) {
+      case 'shadows':
+        widget.editorState.updateParam('shadowsHue', hue);
+        widget.editorState.updateParam('shadowsSaturation', saturation);
+        break;
+      case 'midtones':
+        widget.editorState.updateParam('midtonesHue', hue);
+        widget.editorState.updateParam('midtonesSaturation', saturation);
+        break;
+      case 'highlights':
+        widget.editorState.updateParam('highlightsHue', hue);
+        widget.editorState.updateParam('highlightsSaturation', saturation);
+        break;
     }
+    
+    setState(() {});
+    HapticFeedback.lightImpact();
   }
 }
 

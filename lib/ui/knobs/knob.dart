@@ -132,7 +132,11 @@ class _ParameterKnobState extends State<ParameterKnob>
             onPanStart: _onPanStart,
             onPanUpdate: _onPanUpdate,
             onPanEnd: _onPanEnd,
-            onTap: _onTap,
+            onDoubleTap: () {
+              // Double-tap to reset to default value
+              widget.onReset();
+              HapticFeedback.mediumImpact();
+            },
             onLongPress: _onLongPress,
             child: AnimatedBuilder(
             animation: _breathingController,
@@ -229,22 +233,25 @@ class _ParameterKnobState extends State<ParameterKnob>
     if (!_isDragging) return;
     
     final delta = details.delta;
-    final sensitivity = _isFineMode ? 0.1 : 0.5; // Much smoother base sensitivity
+    // Improved sensitivity for smoother control
+    // Fine mode: 10x more precise, Normal mode: responsive but not jumpy
+    final sensitivity = _isFineMode ? 0.15 : 1.0;
     
-    // Smoother vertical drag with better precision
+    // Calculate change based on drag direction
     double change = 0;
     
-    // Primary: Vertical drag (more precise)
-    if (delta.dy.abs() > 0.1) {
-      change = -delta.dy * sensitivity * 0.003; // Much finer control
+    // Primary: Vertical drag (inverse for natural feel - drag down = decrease)
+    // Secondary: Horizontal drag (drag right = increase)
+    // Use whichever direction has more movement
+    if (delta.dy.abs() > delta.dx.abs()) {
+      // Vertical drag dominates
+      change = -delta.dy * sensitivity * 0.005;
+    } else if (delta.dx.abs() > 0.5) {
+      // Horizontal drag dominates
+      change = delta.dx * sensitivity * 0.004;
     }
     
-    // Secondary: Horizontal drag for fine adjustments
-    if (delta.dx.abs() > delta.dy.abs() && delta.dx.abs() > 0.1) {
-      change = delta.dx * sensitivity * 0.002; // Even finer horizontal
-    }
-    
-    if (change.abs() > 0.00001) { // Only update if meaningful change
+    if (change.abs() > 0.00001) {
       final range = widget.paramDef.max - widget.paramDef.min;
       final increment = change * range;
       final newValue = (widget.value + increment).clamp(
@@ -252,8 +259,8 @@ class _ParameterKnobState extends State<ParameterKnob>
         widget.paramDef.max,
       );
       
-      // Smooth interpolation for better feel
-      if ((newValue - widget.value).abs() > 0.001) {
+      // Only update if there's a meaningful change (prevents micro-jitter)
+      if ((newValue - widget.value).abs() > 0.0001) {
         widget.onChanged(newValue);
       }
     }
@@ -264,10 +271,6 @@ class _ParameterKnobState extends State<ParameterKnob>
     setState(() {
       _isDragging = false;
     });
-  }
-  
-  void _onTap() {
-    HapticFeedback.lightImpact();
   }
   
   void _onLongPress() {

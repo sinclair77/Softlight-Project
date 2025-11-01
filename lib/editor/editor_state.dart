@@ -163,9 +163,10 @@ class EditorState extends ChangeNotifier {
   Color _highlightColor = const Color(0xFFFF3040); // Default red accent
   bool _isRendering = false; // Prevent concurrent rendering
   
-  // Smooth real-time updates
-  static const _debounceDelay = Duration(milliseconds: 8); // Much faster updates
+  // Smooth real-time updates with optimized debouncing
+  static const _debounceDelay = Duration(milliseconds: 16); // ~60fps update rate
   DateTime _lastUpdateTime = DateTime.now();
+  bool _pendingRender = false; // Track if render is pending
   
   // Getters
   LoadedImageInfo? get sourceImage => _sourceImage;
@@ -272,18 +273,32 @@ class EditorState extends ChangeNotifier {
       case 'highlightsHue': _params.highlightsHue = value.clamp(-180.0, 180.0); break;
       case 'highlightsSaturation': _params.highlightsSaturation = value.clamp(-1.0, 1.0); break;
       case 'highlightsLuminance': _params.highlightsLuminance = value.clamp(-1.0, 1.0); break;
+      
+      // Crop and transform parameters (no-op for now, but prevents errors)
+      case 'rotation':
+      case 'straighten':
+      case 'flipHorizontal':
+      case 'flipVertical':
+        // These parameters are handled separately by crop panel
+        break;
     }
     
     // Immediate UI update for smooth knob feedback
     notifyListeners();
     
-    // Debounced render update for performance
+    // Optimized debounced render update
     _lastUpdateTime = DateTime.now();
-    Future.delayed(_debounceDelay, () {
-      if (DateTime.now().difference(_lastUpdateTime) >= _debounceDelay) {
-        _renderImage();
-      }
-    });
+    
+    // Only schedule new render if one isn't already pending
+    if (!_pendingRender) {
+      _pendingRender = true;
+      Future.delayed(_debounceDelay, () {
+        _pendingRender = false;
+        if (DateTime.now().difference(_lastUpdateTime) >= _debounceDelay) {
+          _renderImage();
+        }
+      });
+    }
   }
   
   /// Reset a specific parameter
@@ -395,7 +410,13 @@ class EditorState extends ChangeNotifier {
   
   /// Internal: Render processed image
   Future<void> _renderImage() async {
-    if (_sourceImage == null || _isRendering) return;
+    if (_sourceImage == null) return;
+    
+    // If already rendering, queue another render after current one completes
+    if (_isRendering) {
+      Future.delayed(const Duration(milliseconds: 50), _renderImage);
+      return;
+    }
     
     _isRendering = true;
     try {
