@@ -1,6 +1,6 @@
 # softlightstudio
 
-A new Flutter project.
+A professional photo editor for iOS and Android
 
 ## Getting Started
 
