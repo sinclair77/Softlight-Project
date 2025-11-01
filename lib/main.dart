@@ -21,6 +21,7 @@ import 'package:softlightstudio/ui/histogram/draggable_histogram.dart';
 import 'package:softlightstudio/ui/widgets/animated_toggle.dart';
 import 'package:softlightstudio/ui/widgets/before_after_comparison.dart';
 import 'package:softlightstudio/ui/widgets/rule_of_thirds_overlay.dart';
+import 'package:softlightstudio/ui/widgets/nothing_progress_indicator.dart';
 import 'package:softlightstudio/util/ui_debug_flags.dart';
 
 class _PanelShortcut {
@@ -74,29 +75,36 @@ class _SoftlightStudioAppState extends State<SoftlightStudioApp> {
       child: Consumer<EditorState>(
         builder: (context, editorState, child) {
           final accent = editorState.highlightColor;
-          return MaterialApp(
-            title: 'Softlight Studio',
-            debugShowCheckedModeBanner: false,
-            theme: isDarkMode
+          return AnimatedTheme(
+            data: isDarkMode
                 ? SoftlightTheme.buildDarkTheme(accent: accent)
                 : SoftlightTheme.buildLightTheme(accent: accent),
-            home: Consumer<SubscriptionState>(
-              builder: (context, subscriptionState, child) {
-                if (!subscriptionState.onboardingCompleted) {
-                  return const OnboardingScreen();
-                }
-                return HomePage(onToggleTheme: toggleTheme);
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            child: MaterialApp(
+              title: 'Softlight Studio',
+              debugShowCheckedModeBanner: false,
+              theme: isDarkMode
+                  ? SoftlightTheme.buildDarkTheme(accent: accent)
+                  : SoftlightTheme.buildLightTheme(accent: accent),
+              home: Consumer<SubscriptionState>(
+                builder: (context, subscriptionState, child) {
+                  if (!subscriptionState.onboardingCompleted) {
+                    return const OnboardingScreen();
+                  }
+                  return HomePage(onToggleTheme: toggleTheme);
+                },
+              ),
+              builder: (context, child) {
+                // Ensure fonts are loaded and provide fallback
+                return MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(1.0)),
+                  child: child ?? Container(),
+                );
               },
             ),
-            builder: (context, child) {
-              // Ensure fonts are loaded and provide fallback
-              return MediaQuery(
-                data: MediaQuery.of(
-                  context,
-                ).copyWith(textScaler: TextScaler.linear(1.0)),
-                child: child ?? Container(),
-              );
-            },
           );
         },
       ),
@@ -104,72 +112,118 @@ class _SoftlightStudioAppState extends State<SoftlightStudioApp> {
   }
 }
 
-class _DesktopSettingsDialog extends StatelessWidget {
+class _DesktopSettingsDialog extends StatefulWidget {
   const _DesktopSettingsDialog({required this.onToggleTheme});
 
   final VoidCallback onToggleTheme;
 
   @override
+  State<_DesktopSettingsDialog> createState() => _DesktopSettingsDialogState();
+}
+
+class _DesktopSettingsDialogState extends State<_DesktopSettingsDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 280),
+      vsync: this,
+    );
+    _scaleAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleClose() async {
+    await _controller.reverse();
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 48, vertical: 48),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 620),
-        decoration: BoxDecoration(
-          color: isDark
-              ? SoftlightTheme.gray900.withAlpha(245)
-              : SoftlightTheme.white.withAlpha(245),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray200,
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.35 : 0.2),
-              blurRadius: 40,
-              offset: const Offset(0, 20),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 12, right: 12),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
-                      ),
-                      splashRadius: 18,
-                      tooltip: 'Close settings',
-                      icon: Icon(
-                        Icons.close_rounded,
-                        size: 18,
-                        color: isDark
-                            ? SoftlightTheme.gray400
-                            : SoftlightTheme.gray600,
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ),
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.85, end: 1.0).animate(_scaleAnimation),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 48, vertical: 48),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 620),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? SoftlightTheme.gray900.withAlpha(245)
+                  : SoftlightTheme.white.withAlpha(245),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray200,
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(isDark ? 0.35 : 0.2),
+                  blurRadius: 40,
+                  offset: const Offset(0, 20),
                 ),
-                const SizedBox(height: 8),
-                SettingsPanel(onToggleTheme: onToggleTheme),
               ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12, right: 12),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                          splashRadius: 18,
+                          tooltip: 'Close settings',
+                          icon: Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: isDark
+                                ? SoftlightTheme.gray400
+                                : SoftlightTheme.gray600,
+                          ),
+                          onPressed: _handleClose,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SettingsPanel(onToggleTheme: widget.onToggleTheme),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -679,7 +733,11 @@ class _HomePageState extends State<HomePage> {
           if (editorState.isProcessing)
             Container(
               color: Colors.black.withOpacity(0.3),
-              child: const Center(child: CircularProgressIndicator()),
+              child: Center(
+                child: NothingProgressIndicator(
+                  color: editorState.highlightColor,
+                ),
+              ),
             ),
           if (displayImage != null)
             Positioned(top: 16, right: 16, child: _buildBeforeAfterButton()),
@@ -996,6 +1054,22 @@ class _HomePageState extends State<HomePage> {
                 duration: const Duration(milliseconds: 240),
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  // Enhanced fade and slide transition
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.05, 0),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      )),
+                      child: child,
+                    ),
+                  );
+                },
                 child: SingleChildScrollView(
                   key: ValueKey<String>('mobile-$_selectedPanel'),
                   physics: const BouncingScrollPhysics(),
@@ -1048,62 +1122,78 @@ class _HomePageState extends State<HomePage> {
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: GestureDetector(
                       onTap: () => _openMobilePanel(shortcut.id),
-                      child: AnimatedContainer(
+                      child: TweenAnimationBuilder<double>(
                         duration: const Duration(milliseconds: 200),
                         curve: Curves.easeOutCubic,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected ? accent : Colors.transparent,
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: isSelected
-                                ? accent
-                                : (isDark
-                                      ? SoftlightTheme.gray700
-                                      : SoftlightTheme.gray300),
-                            width: isSelected ? 1.0 : 0.7,
-                          ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: accent.withOpacity(0.35),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 8),
+                        tween: Tween<double>(begin: 1.0, end: isSelected ? 1.0 : 1.0),
+                        builder: (context, scale, child) {
+                          return Transform.scale(
+                            scale: scale,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeOutCubic,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected ? accent : Colors.transparent,
+                                borderRadius: BorderRadius.circular(22),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? accent
+                                      : (isDark
+                                            ? SoftlightTheme.gray700
+                                            : SoftlightTheme.gray300),
+                                  width: isSelected ? 1.0 : 0.7,
+                                ),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: accent.withOpacity(0.35),
+                                          blurRadius: 14,
+                                          offset: const Offset(0, 8),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Row(
+                                children: [
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeOutCubic,
+                                    child: Icon(
+                                      shortcut.icon,
+                                      size: 18,
+                                      color: isSelected
+                                          ? SoftlightTheme.white
+                                          : (isDark
+                                                ? SoftlightTheme.gray300
+                                                : SoftlightTheme.gray600),
+                                    ),
                                   ),
-                                ]
-                              : null,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              shortcut.icon,
-                              size: 18,
-                              color: isSelected
-                                  ? SoftlightTheme.white
-                                  : (isDark
-                                        ? SoftlightTheme.gray300
-                                        : SoftlightTheme.gray600),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              shortcut.label.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontFamily: 'Courier New',
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1.2,
-                                color: isSelected
-                                    ? SoftlightTheme.white
-                                    : (isDark
-                                          ? SoftlightTheme.gray400
-                                          : SoftlightTheme.gray700),
+                                  const SizedBox(width: 8),
+                                  AnimatedDefaultTextStyle(
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeOutCubic,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontFamily: 'Courier New',
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 1.2,
+                                      color: isSelected
+                                          ? SoftlightTheme.white
+                                          : (isDark
+                                                ? SoftlightTheme.gray400
+                                                : SoftlightTheme.gray700),
+                                    ),
+                                    child: Text(shortcut.label.toUpperCase()),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ),
                   );
@@ -1140,7 +1230,9 @@ class _HomePageState extends State<HomePage> {
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: GestureDetector(
         onTap: () => setState(() => _selectedPanel = value),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           constraints: const BoxConstraints(minWidth: 96),
           decoration: BoxDecoration(
@@ -1156,9 +1248,9 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           child: Center(
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
               style: TextStyle(
                 fontSize: 11,
                 fontFamily: 'Courier New',
@@ -1169,6 +1261,10 @@ class _HomePageState extends State<HomePage> {
                     : (isDark
                           ? SoftlightTheme.gray400
                           : SoftlightTheme.gray600),
+              ),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
               ),
             ),
           ),
@@ -1182,6 +1278,18 @@ class _HomePageState extends State<HomePage> {
       duration: const Duration(milliseconds: 280),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        // Enhanced fade and scale transition
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.92, end: 1.0).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            ),
+            child: child,
+          ),
+        );
+      },
       child: KeyedSubtree(
         key: ValueKey<String>(_selectedPanel),
         child: _buildPanelBody(_selectedPanel, editorState, isDark),
