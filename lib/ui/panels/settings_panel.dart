@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:softlightstudio/models/subscription_state.dart';
 import 'package:softlightstudio/ui/glass.dart';
 import 'package:softlightstudio/ui/theme.dart';
 import 'package:softlightstudio/editor/editor_state.dart';
@@ -120,6 +121,105 @@ class SettingsPanel extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // Subscription status
+              Consumer<SubscriptionState>(
+                builder: (context, subscriptionState, child) {
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: subscriptionState.isPremium
+                          ? SoftlightTheme.nothingRed.withOpacity(0.12)
+                          : SoftlightTheme.gray800.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: subscriptionState.isPremium
+                            ? SoftlightTheme.nothingRed.withOpacity(0.5)
+                            : SoftlightTheme.gray600.withOpacity(0.5),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              subscriptionState.isPremium
+                                  ? Icons.workspace_premium
+                                  : Icons.play_circle_outline,
+                              size: 18,
+                              color: subscriptionState.isPremium
+                                  ? SoftlightTheme.nothingRed
+                                  : SoftlightTheme.gray400,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              subscriptionState.isPremium
+                                  ? 'PREMIUM'
+                                  : 'FREE WITH ADS',
+                              style:
+                                  Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: subscriptionState.isPremium
+                                    ? SoftlightTheme.nothingRed
+                                    : SoftlightTheme.gray400,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          subscriptionState.isPremium
+                              ? 'You have access to all premium features'
+                              : 'Using free version with limited features',
+                          style: TextStyle(
+                            color: SoftlightTheme.gray500,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Reset onboarding button (for testing)
+              Consumer<SubscriptionState>(
+                builder: (context, subscriptionState, child) {
+                  return GlassPillButton(
+                    onPressed: () async {
+                      await subscriptionState.reset();
+                      // The app will automatically show onboarding again
+                    },
+                    accentColor: editorState.highlightColor,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.refresh,
+                          size: 16,
+                          color: isDark
+                              ? SoftlightTheme.gray100
+                              : SoftlightTheme.gray800,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'RESET ONBOARDING',
+                          style: TextStyle(
+                            color: isDark
+                                ? SoftlightTheme.gray100
+                                : SoftlightTheme.gray800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
 
               const SizedBox(height: 20),
