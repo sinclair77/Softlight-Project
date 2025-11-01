@@ -22,6 +22,8 @@ import 'package:softlightstudio/ui/widgets/animated_toggle.dart';
 import 'package:softlightstudio/ui/widgets/before_after_comparison.dart';
 import 'package:softlightstudio/ui/widgets/rule_of_thirds_overlay.dart';
 import 'package:softlightstudio/ui/animations/animations.dart';
+import 'package:softlightstudio/ui/animations/loading_indicators.dart';
+import 'package:softlightstudio/ui/animations/interactive_widgets.dart';
 import 'package:softlightstudio/util/ui_debug_flags.dart';
 
 class _PanelShortcut {
@@ -533,31 +535,22 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const Spacer(),
             // Export button
-            IconButton(
-              icon: Icon(
-                Icons.share_outlined,
-                size: 20,
-                color: isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
-              ),
+            NothingIconButton(
+              icon: Icons.share_outlined,
               onPressed: () => _showExportDialog(context),
+              tooltip: 'Export',
             ),
             // Eye icon for viewing options
-            IconButton(
-              icon: Icon(
-                Icons.visibility_outlined,
-                size: 20,
-                color: isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
-              ),
+            NothingIconButton(
+              icon: Icons.visibility_outlined,
               onPressed: _showViewingOptions,
+              tooltip: 'Viewing Options',
             ),
             // Settings button
-            IconButton(
-              icon: Icon(
-                Icons.settings_outlined,
-                size: 20,
-                color: isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
-              ),
+            NothingIconButton(
+              icon: Icons.settings_outlined,
               onPressed: () => _showSettingsDialog(context),
+              tooltip: 'Settings',
             ),
               ],
             ),
@@ -607,7 +600,7 @@ class _HomePageState extends State<HomePage> {
 
     Widget buildImageContent() {
       if (displayImage == null) {
-        return const Center(child: CircularProgressIndicator());
+        return const Center(child: NothingLoadingIndicator(size: 48));
       }
 
       final imageWidth = displayImage.width.toDouble();
@@ -678,9 +671,31 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           if (editorState.isProcessing)
-            Container(
-              color: Colors.black.withOpacity(0.3),
-              child: const Center(child: CircularProgressIndicator()),
+            AnimatedOpacity(
+              duration: NothingDurations.fast,
+              opacity: 1.0,
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      NothingLoadingIndicator(size: 48),
+                      SizedBox(height: 16),
+                      Text(
+                        'PROCESSING...',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontFamily: 'Courier New',
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.5,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           if (displayImage != null)
             Positioned(top: 16, right: 16, child: _buildBeforeAfterButton()),
