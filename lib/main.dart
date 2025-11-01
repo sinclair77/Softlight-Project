@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:softlightstudio/editor/presets_manager.dart';
+import 'package:softlightstudio/models/subscription_state.dart';
 import 'package:softlightstudio/ui/theme.dart';
 import 'package:softlightstudio/editor/editor_state.dart';
 import 'package:softlightstudio/ui/knobs/knob.dart';
+import 'package:softlightstudio/ui/onboarding_screen.dart';
 
 import 'package:softlightstudio/ui/panels/presets_panel.dart';
 import 'package:softlightstudio/ui/panels/export_panel.dart';
@@ -36,11 +38,18 @@ class _PanelShortcut {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PresetsManager.instance.loadPresets();
-  runApp(const SoftlightStudioApp());
+  
+  // Initialize subscription state
+  final subscriptionState = SubscriptionState();
+  await subscriptionState.initialize();
+  
+  runApp(SoftlightStudioApp(subscriptionState: subscriptionState));
 }
 
 class SoftlightStudioApp extends StatefulWidget {
-  const SoftlightStudioApp({super.key});
+  final SubscriptionState subscriptionState;
+  
+  const SoftlightStudioApp({super.key, required this.subscriptionState});
 
   @override
   State<SoftlightStudioApp> createState() => _SoftlightStudioAppState();
@@ -57,8 +66,11 @@ class _SoftlightStudioAppState extends State<SoftlightStudioApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => EditorState(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => EditorState()),
+        ChangeNotifierProvider.value(value: widget.subscriptionState),
+      ],
       child: Consumer<EditorState>(
         builder: (context, editorState, child) {
           final accent = editorState.highlightColor;
@@ -68,7 +80,14 @@ class _SoftlightStudioAppState extends State<SoftlightStudioApp> {
             theme: isDarkMode
                 ? SoftlightTheme.buildDarkTheme(accent: accent)
                 : SoftlightTheme.buildLightTheme(accent: accent),
-            home: HomePage(onToggleTheme: toggleTheme),
+            home: Consumer<SubscriptionState>(
+              builder: (context, subscriptionState, child) {
+                if (!subscriptionState.onboardingCompleted) {
+                  return const OnboardingScreen();
+                }
+                return HomePage(onToggleTheme: toggleTheme);
+              },
+            ),
             builder: (context, child) {
               // Ensure fonts are loaded and provide fallback
               return MediaQuery(
@@ -425,53 +444,93 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildNothingHeader(bool isDark, Color accent) {
-    return Container(
-      height: 64,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: isDark
-              ? [SoftlightTheme.gray800, SoftlightTheme.gray900]
-              : [SoftlightTheme.white, SoftlightTheme.gray50],
-        ),
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? SoftlightTheme.gray800 : SoftlightTheme.gray200,
-            width: 0.33,
-          ),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'SOFTLIGHT STUDIO',
-                  style: TextStyle(
-                    fontFamily: 'Courier New',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: isDark
-                        ? SoftlightTheme.white
-                        : SoftlightTheme.gray900,
-                    letterSpacing: 2.8,
-                  ),
-                ),
-              ],
+    return Consumer<SubscriptionState>(
+      builder: (context, subscriptionState, child) {
+        return Container(
+          height: 64,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: isDark
+                  ? [SoftlightTheme.gray800, SoftlightTheme.gray900]
+                  : [SoftlightTheme.white, SoftlightTheme.gray50],
             ),
-            const Spacer(),
+            border: Border(
+              bottom: BorderSide(
+                color: isDark ? SoftlightTheme.gray800 : SoftlightTheme.gray200,
+                width: 0.33,
+              ),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'SOFTLIGHT STUDIO',
+                      style: TextStyle(
+                        fontFamily: 'Courier New',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: isDark
+                            ? SoftlightTheme.white
+                            : SoftlightTheme.gray900,
+                        letterSpacing: 2.8,
+                      ),
+                    ),
+                    if (subscriptionState.isPremium) ...[
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: SoftlightTheme.nothingRed.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: SoftlightTheme.nothingRed.withOpacity(0.4),
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.workspace_premium,
+                              size: 12,
+                              color: SoftlightTheme.nothingRed,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'PRO',
+                              style: TextStyle(
+                                fontFamily: 'Courier New',
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: SoftlightTheme.nothingRed,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const Spacer(),
             // Export button
             IconButton(
               icon: Icon(
@@ -499,9 +558,11 @@ class _HomePageState extends State<HomePage> {
               ),
               onPressed: () => _showSettingsDialog(context),
             ),
-          ],
-        ),
-      ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
