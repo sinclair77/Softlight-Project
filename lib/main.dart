@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -234,11 +236,13 @@ class _HomePageState extends State<HomePage> {
                     final useCompactLayout = constraints.maxWidth < 900;
 
                     return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _buildNothingHeader(isDark, accentColor),
                         Expanded(
                           child: useCompactLayout
                               ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
                                     Expanded(
                                       child: Padding(
@@ -279,27 +283,94 @@ class _HomePageState extends State<HomePage> {
                                     16,
                                     16,
                                   ),
-                                  child: Column(
-                                    children: [
-                                      Expanded(
-                                        child: _buildImageArea(editorState, isDark),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Align(
-                                        alignment: Alignment.center,
-                                        child: ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                            maxWidth: 720,
-                                            minHeight: 360,
-                                            maxHeight: 520,
+                                  child: LayoutBuilder(
+                                    builder: (context, layoutConstraints) {
+                                      const spacing = 16.0;
+                                      const minImageHeight = 280.0;
+                                      const minPanelHeight = 200.0;
+                                      const maxPanelHeight = 520.0;
+
+                                      if (!layoutConstraints.maxHeight.isFinite) {
+                                        return Column(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            Expanded(
+                                              child: _buildImageArea(editorState, isDark),
+                                            ),
+                                            const SizedBox(height: spacing),
+                                            Align(
+                                              alignment: Alignment.center,
+                                              child: ConstrainedBox(
+                                                constraints: const BoxConstraints(
+                                                  maxWidth: 720,
+                                                  maxHeight: maxPanelHeight,
+                                                ),
+                                                child: _buildEditingPanel(
+                                                  editorState,
+                                                  isDark,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }
+
+                                      final availableHeight = math.max(
+                                        0.0,
+                                        layoutConstraints.maxHeight - spacing,
+                                      );
+
+                                      double panelHeight = math.min(
+                                        maxPanelHeight,
+                                        availableHeight * 0.35,
+                                      );
+                                      double imageHeight = availableHeight - panelHeight;
+
+                                      if (imageHeight < minImageHeight) {
+                                        imageHeight = math.min(minImageHeight, availableHeight);
+                                        panelHeight = math.max(0.0, availableHeight - imageHeight);
+                                      }
+
+                                      if (panelHeight < minPanelHeight &&
+                                          availableHeight > minImageHeight + minPanelHeight) {
+                                        panelHeight = minPanelHeight;
+                                        imageHeight = availableHeight - panelHeight;
+                                      }
+
+                                      if (panelHeight <= 0.0) {
+                                        return SizedBox(
+                                          height: availableHeight,
+                                          child: _buildImageArea(editorState, isDark),
+                                        );
+                                      }
+
+                                      return Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          SizedBox(
+                                            height: imageHeight,
+                                            child: _buildImageArea(editorState, isDark),
                                           ),
-                                          child: _buildEditingPanel(
-                                            editorState,
-                                            isDark,
+                                          const SizedBox(height: spacing),
+                                          SizedBox(
+                                            height: panelHeight,
+                                            child: Align(
+                                              alignment: Alignment.center,
+                                              child: ConstrainedBox(
+                                                constraints: const BoxConstraints(
+                                                  maxWidth: 720,
+                                                  maxHeight: maxPanelHeight,
+                                                ),
+                                                child: _buildEditingPanel(
+                                                  editorState,
+                                                  isDark,
+                                                ),
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                    ],
+                                        ],
+                                      );
+                                    },
                                   ),
                                 ),
                         ),
@@ -480,8 +551,7 @@ class _HomePageState extends State<HomePage> {
       final imageWidth = displayImage.width.toDouble();
       final imageHeight = displayImage.height.toDouble();
 
-      final baseContent =
-          _showBeforeAfter && originalImage != null && processedImage != null
+      final baseContent = _showBeforeAfter && originalImage != null && processedImage != null
           ? BeforeAfterComparison(
               originalImage: RawImage(image: originalImage, fit: BoxFit.cover),
               processedImage: RawImage(
@@ -491,26 +561,45 @@ class _HomePageState extends State<HomePage> {
             )
           : RawImage(image: displayImage, fit: BoxFit.cover);
 
-      return FittedBox(
-        fit: BoxFit.contain,
-        child: SizedBox(
-          width: imageWidth,
-          height: imageHeight,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              baseContent,
-              if (_showGridView)
-                IgnorePointer(
-                  child: RuleOfThirdsOverlay(
-                    color: editorState.highlightColor,
-                    opacity: isDark ? 0.55 : 0.4,
-                    lineWidth: 1.2,
-                  ),
-                ),
-            ],
-          ),
-        ),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : imageWidth;
+          final maxHeight = constraints.maxHeight.isFinite ? constraints.maxHeight : imageHeight;
+
+          double scale = math.min(
+            maxWidth / imageWidth,
+            maxHeight / imageHeight,
+          );
+
+          if (!scale.isFinite || scale <= 0) {
+            scale = 1.0;
+          }
+
+          final fittedWidth = imageWidth * scale;
+          final fittedHeight = imageHeight * scale;
+
+          return Align(
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: fittedWidth,
+              height: fittedHeight,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  baseContent,
+                  if (_showGridView)
+                    IgnorePointer(
+                      child: RuleOfThirdsOverlay(
+                        color: editorState.highlightColor,
+                        opacity: isDark ? 0.55 : 0.4,
+                        lineWidth: 1.2,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
       );
     }
 
@@ -547,95 +636,180 @@ class _HomePageState extends State<HomePage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final accent = editorState.highlightColor;
+        final maxWidth = constraints.maxWidth.isFinite
+            ? math.min(constraints.maxWidth, 520.0)
+            : 520.0;
+
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? SoftlightTheme.gray700.withAlpha(120)
-                          : SoftlightTheme.gray200.withAlpha(120),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isDark
-                            ? SoftlightTheme.gray600
-                            : SoftlightTheme.gray300,
-                        width: 1,
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.add_photo_alternate_outlined,
-                      size: 48,
-                      color: isDark
-                          ? SoftlightTheme.gray400
-                          : SoftlightTheme.gray600,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'IMPORT PHOTOS',
-                    style: TextStyle(
-                      fontFamily: 'Courier New',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark
-                          ? SoftlightTheme.gray200
-                          : SoftlightTheme.gray800,
-                      letterSpacing: 2.0,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Upload photos to start professional editing',
-                    style: TextStyle(
-                      fontFamily: 'Courier New',
-                      fontSize: 12,
-                      color: isDark
-                          ? SoftlightTheme.gray400
-                          : SoftlightTheme.gray600,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => editorState.loadFromPicker(),
-                      icon: const Icon(Icons.upload_file, size: 20),
-                      label: const Text('CHOOSE FROM DEVICE'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: accent,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? SoftlightTheme.gray700.withOpacity(0.22)
+                              : SoftlightTheme.gray200.withOpacity(0.45),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isDark
+                                ? SoftlightTheme.gray600
+                                : SoftlightTheme.gray300,
+                            width: 1,
+                          ),
                         ),
-                        textStyle: const TextStyle(
+                        child: Icon(
+                          Icons.photo_library_outlined,
+                          size: 52,
+                          color: accent,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      Text(
+                        'Welcome to Softlight Studio',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
                           fontFamily: 'Courier New',
-                          fontSize: 14,
+                          fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          letterSpacing: 1.8,
+                          color: isDark
+                              ? SoftlightTheme.gray100
+                              : SoftlightTheme.gray800,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 28),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () => editorState.loadFromPicker(),
+                            icon: const Icon(Icons.upload_file, size: 20),
+                            label: const Text('CHOOSE A PHOTO'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: accent,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 16,
+                              ),
+                              textStyle: const TextStyle(
+                                fontFamily: 'Courier New',
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton.icon(
+                            onPressed: () => editorState.loadPlaceholder(),
+                            icon: const Icon(Icons.auto_awesome, size: 18),
+                            label: const Text('TRY A DEMO IMAGE'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: isDark
+                                  ? SoftlightTheme.gray200
+                                  : SoftlightTheme.gray700,
+                              textStyle: const TextStyle(
+                                fontFamily: 'Courier New',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          _buildOnboardingTip(
+                            icon: Icons.upload,
+                            text: 'Supports RAW up to hundreds of megapixels.',
+                            isDark: isDark,
+                            accent: accent,
+                          ),
+                          _buildOnboardingTip(
+                            icon: Icons.tune,
+                            text: 'Long-press a knob to enter fine adjustment mode.',
+                            isDark: isDark,
+                            accent: accent,
+                          ),
+                          _buildOnboardingTip(
+                            icon: Icons.visibility,
+                            text: 'Use the viewing options to toggle grids and before/after.',
+                            isDark: isDark,
+                            accent: accent,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildOnboardingTip({
+    required IconData icon,
+    required String text,
+    required bool isDark,
+    required Color accent,
+  }) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 200),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? SoftlightTheme.gray800.withOpacity(0.6)
+            : SoftlightTheme.gray100.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray300,
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontFamily: 'Courier New',
+                fontSize: 11,
+                height: 1.4,
+                color: isDark
+                    ? SoftlightTheme.gray300
+                    : SoftlightTheme.gray700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

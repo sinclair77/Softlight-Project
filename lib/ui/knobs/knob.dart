@@ -81,13 +81,13 @@ class _ParameterKnobState extends State<ParameterKnob>
             height: 14, // Slightly taller for better tap target
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
             decoration: BoxDecoration(
-              color: _isDragging 
-                  ? widget.editorState.highlightColor
+              color: _isDragging
+                  ? widget.editorState.highlightColor.withOpacity(isDark ? 0.45 : 0.35)
                   : (isDark ? SoftlightTheme.gray800 : SoftlightTheme.gray200),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: _isDragging 
-                    ? widget.editorState.highlightColor
+                color: _isDragging
+                    ? widget.editorState.highlightColor.withOpacity(0.7)
                     : (isDark ? SoftlightTheme.gray600 : SoftlightTheme.gray400),
                 width: 0.5,
               ),
@@ -107,8 +107,8 @@ class _ParameterKnobState extends State<ParameterKnob>
                   fontFamily: 'Menlo',
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
-                  color: _isDragging 
-                      ? SoftlightTheme.gray50
+                  color: _isDragging
+                      ? SoftlightTheme.gray50.withOpacity(0.9)
                       : (isDark ? SoftlightTheme.gray100 : SoftlightTheme.gray900),
                 ),
                 textAlign: TextAlign.center,
@@ -146,33 +146,26 @@ class _ParameterKnobState extends State<ParameterKnob>
                   height: widget.size,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    // Nothing-style shadow with DYNAMIC GLOW when dragging
-                    boxShadow: _isDragging ? [
-                      // Intense highlight glow for Nothing OS feel
-                      BoxShadow(
-                        color: widget.editorState.highlightColor.withOpacity(0.6),
-                        blurRadius: 16,
-                        spreadRadius: 4,
-                      ),
-                      // Inner glow
-                      BoxShadow(
-                        color: widget.editorState.highlightColor.withOpacity(0.8),
-                        blurRadius: 8,
-                        spreadRadius: 1,
-                      ),
-                      // Sharp edge glow
-                      BoxShadow(
-                        color: widget.editorState.highlightColor,
-                        blurRadius: 2,
-                        spreadRadius: 0,
-                      ),
-                    ] : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+                    boxShadow: _isDragging
+                        ? [
+                            BoxShadow(
+                              color: widget.editorState.highlightColor.withOpacity(0.35),
+                              blurRadius: 18,
+                              spreadRadius: 3,
+                            ),
+                            BoxShadow(
+                              color: widget.editorState.highlightColor.withOpacity(0.25),
+                              blurRadius: 8,
+                              spreadRadius: 0,
+                            ),
+                          ]
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(isDark ? 0.18 : 0.06),
+                              blurRadius: 3,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                   ),
                   child: CustomPaint(
                     painter: KnobPainter(
@@ -364,7 +357,7 @@ class KnobPainter extends CustomPainter {
     Color faceColor;
     
     if (isDragging) {
-      faceColor = highlightColor; // Bright when dragging
+      faceColor = highlightColor.withOpacity(isDark ? 0.35 : 0.3);
     } else if (isAdjusted) {
       // Subtle glow when adjusted from default
       faceColor = isDark 
@@ -386,8 +379,8 @@ class KnobPainter extends CustomPainter {
     double borderWidth = 0.5;
     
     if (isDragging) {
-      borderColor = highlightColor;
-      borderWidth = 1.5;
+      borderColor = highlightColor.withOpacity(0.9);
+      borderWidth = 1.0;
     } else if (isAdjusted) {
       // Subtle highlight border when adjusted
       borderColor = highlightColor.withOpacity(0.4);
@@ -423,13 +416,12 @@ class KnobPainter extends CustomPainter {
     double tickWidth = 4.0;
     
     if (isDragging) {
-      // Bright and thick when dragging
-      tickColor = isDark ? SoftlightTheme.gray50 : SoftlightTheme.gray900;
-      tickWidth = 5.0;
+      tickColor = highlightColor.withOpacity(0.85);
+      tickWidth = 4.5;
     } else if (isAdjusted) {
       // Highlight color when adjusted from default
-      tickColor = highlightColor;
-      tickWidth = 4.5;
+      tickColor = highlightColor.withOpacity(0.8);
+      tickWidth = 4.2;
     } else {
       // Subtle when at default
       tickColor = isDark ? SoftlightTheme.gray600 : SoftlightTheme.gray400;
@@ -449,16 +441,16 @@ class KnobPainter extends CustomPainter {
       ..color = tickColor
       ..style = PaintingStyle.fill;
     
-    final dotSize = isAdjusted ? 4.0 : 3.0; // Bigger dot when adjusted
+    final dotSize = isAdjusted ? 3.5 : 2.8; // Softer prominence
     canvas.drawCircle(tickStart, dotSize, dotPaint);
   }
 
   void _drawCenterDot(Canvas canvas, Offset center) {
     // Nothing clock style: Minimal center dot
     final centerPaint = Paint()
-      ..color = isDragging 
-          ? (isDark ? SoftlightTheme.gray50 : SoftlightTheme.gray900)
-          : (isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600)
+      ..color = isDragging
+          ? highlightColor.withOpacity(0.9)
+          : (isDark ? SoftlightTheme.gray500 : SoftlightTheme.gray600)
       ..style = PaintingStyle.fill;
     
     canvas.drawCircle(center, 1.0, centerPaint);
@@ -467,7 +459,7 @@ class KnobPainter extends CustomPainter {
   void _drawFineModeRing(Canvas canvas, Offset center, double radius) {
     // Fine mode: Outer ring like Nothing's selection states
     final ringPaint = Paint()
-      ..color = highlightColor.withOpacity(0.4)
+      ..color = highlightColor.withOpacity(0.35)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
     

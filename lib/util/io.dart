@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -21,13 +22,16 @@ class ImageLoader {
         ],
         allowMultiple: false,
         withData: true,
+        withReadStream: true,
       );
       
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
-        if (file.bytes != null) {
-          return await _loadImageFromBytes(file.bytes!, file.name);
+        final bytes = await _resolveFileBytes(file);
+        if (bytes != null) {
+          return await _loadImageFromBytes(bytes, file.name);
         }
+        debugPrint('Selected file "${file.name}" had no in-memory bytes or stream.');
       }
       return null;
     } catch (e) {
@@ -140,6 +144,30 @@ class ImageLoader {
       height: height.toInt(),
     );
   }
+
+  /// Resolve bytes for a [PlatformFile], supporting large desktop imports.
+  static Future<Uint8List?> _resolveFileBytes(PlatformFile file) async {
+    final directBytes = file.bytes;
+    if (directBytes != null && directBytes.isNotEmpty) {
+      return directBytes;
+    }
+
+    final stream = file.readStream;
+    if (stream != null) {
+      final builder = BytesBuilder(copy: false);
+      await for (final chunk in stream) {
+        if (chunk.isNotEmpty) {
+          builder.add(chunk);
+        }
+      }
+      final collected = builder.takeBytes();
+      if (collected.isNotEmpty) {
+        return collected;
+      }
+    }
+
+    return null;
+  }
 }
 
 /// Container for loaded image data
@@ -198,7 +226,6 @@ class UrlInputDialog extends StatefulWidget {
 
 class _UrlInputDialogState extends State<UrlInputDialog> {
   final _controller = TextEditingController();
-  bool _isLoading = false;
   
   @override
   void dispose() {
@@ -220,48 +247,26 @@ class _UrlInputDialogState extends State<UrlInputDialog> {
               labelText: 'Image URL',
             ),
             autofocus: true,
-            onSubmitted: _isLoading ? null : (_) => _loadImage(),
+            onSubmitted: (_) => _submit(),
           ),
-          if (_isLoading) ...[
-            const SizedBox(height: 16),
-            const LinearProgressIndicator(),
-          ],
         ],
       ),
       actions: [
         TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
         TextButton(
-          onPressed: _isLoading ? null : _loadImage,
+          onPressed: _submit,
           child: const Text('Load'),
         ),
       ],
     );
   }
   
-  Future<void> _loadImage() async {
+  void _submit() {
     final url = _controller.text.trim();
     if (url.isEmpty) return;
-    
-    setState(() => _isLoading = true);
-    
-    try {
-      final imageInfo = await ImageLoader.loadFromUrl(url);
-      if (mounted) {
-        Navigator.pop(context, imageInfo);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load image: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    Navigator.pop(context, url);
   }
 }
