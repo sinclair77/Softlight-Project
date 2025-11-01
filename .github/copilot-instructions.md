@@ -155,7 +155,7 @@ flutter build ios           # iOS
 ## Additional Notes
 - The app uses a custom "Nothing OS" inspired design language
 - Maintain the minimalist, clean aesthetic in all UI additions
-- Use haptic feedback for important interactions (via `HapticFeedback` API)
+- Use haptic feedback for important interactions (via `HapticFeedback` API from `package:flutter/services.dart`)
 - All text labels should be uppercase with proper letter spacing for brand consistency
 - Debug mode is available via `ui_debug_flags.dart` - use for layout debugging only
 
