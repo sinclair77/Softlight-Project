@@ -24,6 +24,7 @@ import 'package:softlightstudio/ui/widgets/rule_of_thirds_overlay.dart';
 import 'package:softlightstudio/ui/animations/animations.dart';
 import 'package:softlightstudio/ui/animations/loading_indicators.dart';
 import 'package:softlightstudio/ui/animations/interactive_widgets.dart';
+import 'package:softlightstudio/ui/widgets/tech_texture_overlay.dart';
 import 'package:softlightstudio/ui/onboarding/onboarding_flow.dart';
 import 'package:softlightstudio/util/ui_debug_flags.dart';
 
@@ -590,25 +591,65 @@ class _HomePageState extends State<HomePage> {
       height: 64,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: isDark
-              ? [SoftlightTheme.gray800, SoftlightTheme.gray900]
-              : [SoftlightTheme.white, SoftlightTheme.gray50],
+              ? [
+                  SoftlightTheme.gray900,
+                  SoftlightTheme.gray850,
+                  SoftlightTheme.gray900,
+                ]
+              : [
+                  Colors.white,
+                  SoftlightTheme.gray50.withOpacity(0.96),
+                  Colors.white.withOpacity(0.92),
+                ],
+          stops: const [0.0, 0.45, 1.0],
         ),
         border: Border(
           bottom: BorderSide(
             color: isDark ? SoftlightTheme.gray800 : SoftlightTheme.gray200,
-            width: 0.33,
+            width: 0.5,
           ),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.26)
+                : Colors.black.withOpacity(0.1),
+            blurRadius: 24,
+            offset: const Offset(0, 16),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
-          children: [
-            Row(
+      foregroundDecoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            accent.withOpacity(isDark ? 0.08 : 0.12),
+            Colors.transparent,
+            accent.withOpacity(isDark ? 0.05 : 0.08),
+          ],
+          stops: const [0.0, 0.5, 1.0],
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: TechTextureOverlay(
+              isDark: isDark,
+              accent: accent,
+              opacity: isDark ? 0.025 : 0.04,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
               children: [
+                Row(
+                  children: [
                 Container(
                   width: 6,
                   height: 6,
@@ -630,50 +671,56 @@ class _HomePageState extends State<HomePage> {
                     letterSpacing: 2.8,
                   ),
                 ),
+                  ],
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(
+                    Icons.add_photo_alternate_outlined,
+                    size: 20,
+                    color: isDark
+                        ? SoftlightTheme.gray400
+                        : SoftlightTheme.gray600,
+                  ),
+                  tooltip: 'Import photo',
+                  onPressed: () =>
+                      context.read<EditorState>().loadFromPicker(),
+                ),
+                NothingIconButton(
+                  icon: Icons.share_outlined,
+                  onPressed: () => _showExportDialog(context),
+                  tooltip: 'Export',
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.lightbulb_outline,
+                    size: 20,
+                    color: isDark
+                        ? SoftlightTheme.gray400
+                        : SoftlightTheme.gray600,
+                  ),
+                  onPressed: _showOnboarding,
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.visibility_outlined,
+                    size: 20,
+                    color: isDark
+                        ? SoftlightTheme.gray400
+                        : SoftlightTheme.gray600,
+                  ),
+                  onPressed: _showViewingOptions,
+                  tooltip: 'Viewing Options',
+                ),
+                NothingIconButton(
+                  icon: Icons.settings_outlined,
+                  onPressed: () => _showSettingsDialog(context),
+                  tooltip: 'Settings',
+                ),
               ],
             ),
-            const Spacer(),
-            IconButton(
-              icon: Icon(
-                Icons.add_photo_alternate_outlined,
-                size: 20,
-                color:
-                    isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
-              ),
-              tooltip: 'Import photo',
-              onPressed: () => context.read<EditorState>().loadFromPicker(),
-            ),
-            NothingIconButton(
-              icon: Icons.share_outlined,
-              onPressed: () => _showExportDialog(context),
-              tooltip: 'Export',
-            ),
-            IconButton(
-              icon: Icon(
-                Icons.lightbulb_outline,
-                size: 20,
-                color:
-                    isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
-              ),
-              onPressed: _showOnboarding,
-            ),
-            IconButton(
-              icon: Icon(
-                Icons.visibility_outlined,
-                size: 20,
-                color:
-                    isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
-              ),
-              onPressed: _showViewingOptions,
-              tooltip: 'Viewing Options',
-            ),
-            NothingIconButton(
-              icon: Icons.settings_outlined,
-              onPressed: () => _showSettingsDialog(context),
-              tooltip: 'Settings',
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -793,6 +840,14 @@ class _HomePageState extends State<HomePage> {
               child: Center(child: buildImageContent()),
             ),
           ),
+          if (displayImage != null)
+            Positioned.fill(
+              child: TechTextureOverlay(
+                isDark: isDark,
+                accent: editorState.highlightColor,
+                opacity: isDark ? 0.03 : 0.045,
+              ),
+            ),
           if (editorState.isProcessing)
             AnimatedOpacity(
               duration: NothingDurations.fast,
@@ -1029,41 +1084,82 @@ class _HomePageState extends State<HomePage> {
             : SoftlightTheme.white.withAlpha(245),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border.all(
-          color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray200,
+          color: isDark
+              ? SoftlightTheme.gray750.withOpacity(0.9)
+              : SoftlightTheme.gray200.withOpacity(0.9),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(isDark ? 150 : 90),
-            blurRadius: 30,
-            offset: const Offset(0, -12),
+            color: isDark
+                ? Colors.black.withOpacity(0.38)
+                : Colors.black.withOpacity(0.18),
+            blurRadius: 32,
+            offset: const Offset(0, -18),
+          ),
+          BoxShadow(
+            color: editorState.highlightColor.withOpacity(isDark ? 0.15 : 0.1),
+            blurRadius: 42,
+            spreadRadius: 2,
+            offset: const Offset(0, -6),
           ),
         ],
       ),
-      child: Column(
+      foregroundDecoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            editorState.highlightColor.withOpacity(isDark ? 0.05 : 0.08),
+            Colors.transparent,
+            editorState.highlightColor.withOpacity(isDark ? 0.04 : 0.06),
+          ],
+        ),
+      ),
+      child: Stack(
         children: [
-          const SizedBox(height: 10),
-          Container(
-            width: 38,
-            height: 4,
-            decoration: BoxDecoration(
-              color: isDark ? SoftlightTheme.gray600 : SoftlightTheme.gray400,
-              borderRadius: BorderRadius.circular(2),
+          Positioned.fill(
+            child: TechTextureOverlay(
+              isDark: isDark,
+              accent: editorState.highlightColor,
+              opacity: isDark ? 0.018 : 0.03,
             ),
           ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildEditingTabs(isDark),
-          ),
-          const SizedBox(height: 4),
-          Expanded(
-            child: SingleChildScrollView(
-              controller: scrollController,
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              child: _buildEditingContent(editorState, isDark),
-            ),
+          Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color:
+                      isDark ? SoftlightTheme.gray600 : SoftlightTheme.gray400,
+                  borderRadius: BorderRadius.circular(2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: editorState.highlightColor
+                          .withOpacity(isDark ? 0.4 : 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildEditingTabs(isDark),
+              ),
+              const SizedBox(height: 4),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                  child: _buildEditingContent(editorState, isDark),
+                ),
+              ),
+            ],
           ),
         ],
       ),

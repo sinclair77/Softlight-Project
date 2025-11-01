@@ -339,14 +339,16 @@ class KnobPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
     
-    // Normalize value (0.0 to 1.0)
-    final normalizedValue = (value - min) / (max - min);
+    // Normalise to 0..1 and clamp to avoid overflow
+    final normalizedValue = ((value - min) / (max - min)).clamp(0.0, 1.0);
     
-    // Calculate angle (12 o'clock to full circle, like Nothing clock)
+    // Angle increases clockwise from 12 o'clock (negative PI/2).
     final currentAngle = -math.pi / 2 + (normalizedValue * 2 * math.pi);
     
     _drawClockFace(canvas, center, radius);
-    _drawReferenceTick(canvas, center, radius, currentAngle); // Big prominent tick at value position
+    _drawDefaultMarker(canvas, center, radius);
+    _drawReferenceArc(canvas, center, radius, currentAngle);
+    _drawReferenceTick(canvas, center, radius, currentAngle);
     _drawCenterDot(canvas, center);
     
     if (isFineMode) {
@@ -355,8 +357,7 @@ class KnobPainter extends CustomPainter {
   }
   
   void _drawClockFace(Canvas canvas, Offset center, double radius) {
-    // Nothing OS style: Perfect circle with subtle border
-    // Main face - light up when adjusted from default
+    // Nothing OS style face with subtle crystalline sheen
     Color faceColor;
     
     if (isDragging) {
@@ -372,10 +373,29 @@ class KnobPainter extends CustomPainter {
     }
     
     final facePaint = Paint()
-      ..color = faceColor
-      ..style = PaintingStyle.fill;
+      ..style = PaintingStyle.fill
+      ..shader = RadialGradient(
+        colors: [
+          faceColor.withOpacity(isAdjusted || isDragging ? 1 : 0.9),
+          (isDark ? SoftlightTheme.gray850 : SoftlightTheme.gray100)
+              .withOpacity(isDragging ? 0.24 : 0.12),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius * 0.95));
     
     canvas.drawCircle(center, radius * 0.9, facePaint);
+    
+    // Subtle reflective overlay for Nothing-style sheen
+    final sheenPaint = Paint()
+      ..shader = LinearGradient(
+        begin: const Alignment(-0.6, -0.9),
+        end: const Alignment(0.7, 0.8),
+        colors: [
+          Colors.white.withOpacity(isDark ? 0.10 : 0.16),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: radius * 0.9));
+    canvas.drawCircle(center, radius * 0.9, sheenPaint);
     
     // Enhanced border for adjusted knobs
     Color borderColor;
@@ -400,10 +420,56 @@ class KnobPainter extends CustomPainter {
     canvas.drawCircle(center, radius * 0.9, borderPaint);
   }
   
+  void _drawDefaultMarker(Canvas canvas, Offset center, double radius) {
+    // Default zero marker at 12 o'clock (neutral reference)
+    final start = Offset(center.dx, center.dy - radius * 0.78);
+    final end = Offset(center.dx, center.dy - radius * 0.6);
+    final paint = Paint()
+      ..color = isDark ? SoftlightTheme.gray500 : SoftlightTheme.gray400
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(start, end, paint);
+  }
+
+  void _drawReferenceArc(Canvas canvas, Offset center, double radius, double currentAngle) {
+    // Highlight arc emphasising travel direction and magnitude.
+    final arcPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = isDragging ? 3.2 : 2.5
+      ..strokeCap = StrokeCap.round;
+    
+    final sweepAngle = currentAngle - (-math.pi / 2);
+    final isPositive = sweepAngle >= 0;
+    final arcColorBase = isPositive
+        ? highlightColor
+        : (isDark ? SoftlightTheme.gray500 : SoftlightTheme.gray400);
+    arcPaint.shader = SweepGradient(
+      startAngle: -math.pi / 2,
+      endAngle: currentAngle,
+      colors: isPositive
+          ? [
+              arcColorBase.withOpacity(0.1),
+              arcColorBase.withOpacity(isDragging ? 0.85 : 0.55),
+            ]
+          : [
+              arcColorBase.withOpacity(isDragging ? 0.6 : 0.4),
+              arcColorBase.withOpacity(0.12),
+            ],
+    ).createShader(Rect.fromCircle(center: center, radius: radius * 0.74));
+    
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius * 0.74),
+      -math.pi / 2,
+      sweepAngle,
+      false,
+      arcPaint,
+    );
+  }
+
   void _drawReferenceTick(Canvas canvas, Offset center, double radius, double angle) {
-    // BIG prominent tick mark at the current value position
-    final outerRadius = radius * 0.85; // Start from outer edge
-    final innerRadius = radius * 0.6; // Go deeper into circle
+    // Prominent tick marker pointing at current value.
+    final outerRadius = radius * 0.86;
+    final innerRadius = radius * 0.52;
     
     // Calculate tick position at current angle
     final tickStart = Offset(
@@ -415,37 +481,33 @@ class KnobPainter extends CustomPainter {
       center.dy + math.sin(angle) * innerRadius,
     );
     
-    Color tickColor;
-    double tickWidth = 4.0;
-    
-    if (isDragging) {
-      tickColor = highlightColor.withOpacity(0.85);
-      tickWidth = 4.5;
-    } else if (isAdjusted) {
-      // Highlight color when adjusted from default
-      tickColor = highlightColor.withOpacity(0.8);
-      tickWidth = 4.2;
-    } else {
-      // Subtle when at default
-      tickColor = isDark ? SoftlightTheme.gray600 : SoftlightTheme.gray400;
-      tickWidth = 3.0;
-    }
-    
+    final isPositive = angle >= -math.pi / 2;
     final tickPaint = Paint()
-      ..color = tickColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = tickWidth
-      ..strokeCap = StrokeCap.round;
+      ..strokeWidth = isDragging ? 4.5 : (isAdjusted ? 4.0 : 3.2)
+      ..strokeCap = StrokeCap.round
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          highlightColor.withOpacity(isDragging ? 0.9 : 0.75),
+          (isPositive
+                  ? highlightColor
+                  : (isDark ? SoftlightTheme.gray500 : SoftlightTheme.gray400))
+              .withOpacity(isDragging ? 0.7 : 0.5),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
     
     canvas.drawLine(tickStart, tickEnd, tickPaint);
     
     // Add a circle at the outer end for extra prominence
+    final glowPaint = Paint()
+      ..color = highlightColor.withOpacity(isDragging ? 0.85 : 0.65)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    canvas.drawCircle(tickStart, 3.6, glowPaint);
     final dotPaint = Paint()
-      ..color = tickColor
-      ..style = PaintingStyle.fill;
-    
-    final dotSize = isAdjusted ? 3.5 : 2.8; // Softer prominence
-    canvas.drawCircle(tickStart, dotSize, dotPaint);
+      ..color = Colors.white.withOpacity(isDark ? 0.8 : 0.95);
+    canvas.drawCircle(tickStart, 2.2, dotPaint);
   }
 
   void _drawCenterDot(Canvas canvas, Offset center) {
