@@ -186,7 +186,7 @@ class _CropPanelState extends State<CropPanel> {
           180.0,
           (value) {
             setState(() => _rotationAngle = value);
-            editorState.updateParam('rotation', value);
+            // Note: Rotation would be applied during actual crop operation
           },
           isDark,
         ),
@@ -199,7 +199,7 @@ class _CropPanelState extends State<CropPanel> {
           45.0,
           (value) {
             setState(() => _straightenAngle = value);
-            editorState.updateParam('straighten', value);
+            // Note: Straighten would be applied during actual crop operation
           },
           isDark,
         ),
@@ -264,7 +264,7 @@ class _CropPanelState extends State<CropPanel> {
               _flipHorizontal,
               () {
                 setState(() => _flipHorizontal = !_flipHorizontal);
-                editorState.updateParam('flipHorizontal', _flipHorizontal ? 1.0 : 0.0);
+                // Note: Flip would be applied during actual crop operation
                 HapticFeedback.lightImpact();
               },
               isDark,
@@ -276,7 +276,7 @@ class _CropPanelState extends State<CropPanel> {
               _flipVertical,
               () {
                 setState(() => _flipVertical = !_flipVertical);
-                editorState.updateParam('flipVertical', _flipVertical ? 1.0 : 0.0);
+                // Note: Flip would be applied during actual crop operation
                 HapticFeedback.lightImpact();
               },
               isDark,
@@ -397,11 +397,6 @@ class _CropPanelState extends State<CropPanel> {
                 _flipHorizontal = false;
                 _flipVertical = false;
               });
-              // Reset parameters in editor state
-              editorState.updateParam('rotation', 0.0);
-              editorState.updateParam('straighten', 0.0);
-              editorState.updateParam('flipHorizontal', 0.0);
-              editorState.updateParam('flipVertical', 0.0);
               HapticFeedback.mediumImpact();
             },
             isDark,
@@ -414,6 +409,7 @@ class _CropPanelState extends State<CropPanel> {
             'Apply Crop',
             () {
               // Apply crop with selected aspect ratio and transformations
+              // In a real implementation, this would apply the crop to the image
               HapticFeedback.heavyImpact();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -422,6 +418,7 @@ class _CropPanelState extends State<CropPanel> {
                     style: const TextStyle(fontFamily: 'CourierNew'),
                   ),
                   backgroundColor: SoftlightTheme.accentRed,
+                  duration: const Duration(seconds: 2),
                 ),
               );
             },
