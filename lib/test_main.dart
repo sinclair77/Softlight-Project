@@ -53,7 +53,7 @@ class TestApp extends StatelessWidget {
                 SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: () {
-                    print('BUTTON CLICKED');
+                    debugPrint('BUTTON CLICKED');
                   },
                   child: Text('CLICK ME'),
                 ),

@@ -67,6 +67,13 @@ class PresetsManager {
   PresetsManager._();
   static final PresetsManager instance = PresetsManager._();
 
+  /// Placeholder for asynchronously loading user presets in the future.
+  Future<void> loadPresets() async {
+    // Built-in presets are already available; this allows async callers to await
+    // future IO without changing their flow today.
+    return Future<void>.value();
+  }
+
   static final List<Preset> builtInPresets = [
     // Portrait Presets
     Preset(

@@ -191,13 +191,13 @@ class SoftlightTheme {
     );
   }
   
-  static ThemeData buildDarkTheme() {
+  static ThemeData buildDarkTheme({Color accent = accentRed}) {
     final colorScheme = ColorScheme.dark(
-      primary: accentRed,
+      primary: accent,
       onPrimary: white,
       secondary: gray600,
       onSecondary: gray100,
-      error: accentRed,
+      error: accent,
       onError: white,
       surface: gray900,
       onSurface: gray100,
@@ -220,14 +220,14 @@ class SoftlightTheme {
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: gray900.withOpacity(0.95),
-        selectedItemColor: accentRed,
+        selectedItemColor: accent,
         unselectedItemColor: gray500,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: accentRed,
+          backgroundColor: accent,
           foregroundColor: white,
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -245,23 +245,23 @@ class SoftlightTheme {
         ),
       ),
       sliderTheme: SliderThemeData(
-        activeTrackColor: accentRed,
+        activeTrackColor: accent,
         inactiveTrackColor: gray700,
-        thumbColor: accentRed,
-        overlayColor: accentRed.withOpacity(0.2),
+        thumbColor: accent,
+        overlayColor: accent.withOpacity(0.2),
         trackHeight: 2,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
       ),
     );
   }
   
-  static ThemeData buildLightTheme() {
+  static ThemeData buildLightTheme({Color accent = accentRed}) {
     final colorScheme = ColorScheme.light(
-      primary: accentRed,
+      primary: accent,
       onPrimary: white,
       secondary: gray400,
       onSecondary: gray800,
-      error: accentRed,
+      error: accent,
       onError: white,
       surface: white,
       onSurface: gray800,
@@ -284,14 +284,14 @@ class SoftlightTheme {
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: white.withOpacity(0.95),
-        selectedItemColor: accentRed,
+        selectedItemColor: accent,
         unselectedItemColor: gray400,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: accentRed,
+          backgroundColor: accent,
           foregroundColor: white,
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -309,10 +309,10 @@ class SoftlightTheme {
         ),
       ),
       sliderTheme: SliderThemeData(
-        activeTrackColor: accentRed,
+        activeTrackColor: accent,
         inactiveTrackColor: gray200,
-        thumbColor: accentRed,
-        overlayColor: accentRed.withOpacity(0.2),
+        thumbColor: accent,
+        overlayColor: accent.withOpacity(0.2),
         trackHeight: 2,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
       ),
