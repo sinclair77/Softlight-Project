@@ -83,12 +83,7 @@ class _SoftlightStudioAppState extends State<SoftlightStudioApp> {
             home: Consumer<SubscriptionState>(
               builder: (context, subscriptionState, child) {
                 if (!subscriptionState.onboardingCompleted) {
-                  return OnboardingScreen(
-                    onComplete: () {
-                      // Trigger rebuild to show main app
-                      setState(() {});
-                    },
-                  );
+                  return const OnboardingScreen();
                 }
                 return HomePage(onToggleTheme: toggleTheme);
               },

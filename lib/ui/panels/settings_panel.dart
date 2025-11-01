@@ -193,8 +193,30 @@ class SettingsPanel extends StatelessWidget {
                 builder: (context, subscriptionState, child) {
                   return GlassPillButton(
                     onPressed: () async {
-                      await subscriptionState.reset();
-                      // The app will automatically show onboarding again
+                      // Show confirmation dialog
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Reset Onboarding?'),
+                          content: const Text(
+                            'This will reset the onboarding flow and subscription settings. The app will restart the onboarding experience.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('CANCEL'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text('RESET'),
+                            ),
+                          ],
+                        ),
+                      );
+                      
+                      if (confirmed == true) {
+                        await subscriptionState.reset();
+                      }
                     },
                     accentColor: editorState.highlightColor,
                     child: Row(

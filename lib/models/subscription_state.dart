@@ -26,7 +26,12 @@ class SubscriptionState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _onboardingCompleted = prefs.getBool(_onboardingKey) ?? false;
     final typeIndex = prefs.getInt(_subscriptionKey) ?? 0;
-    _subscriptionType = SubscriptionType.values[typeIndex];
+    // Bounds checking to prevent invalid enum index
+    if (typeIndex >= 0 && typeIndex < SubscriptionType.values.length) {
+      _subscriptionType = SubscriptionType.values[typeIndex];
+    } else {
+      _subscriptionType = SubscriptionType.none;
+    }
     notifyListeners();
   }
 

@@ -5,9 +5,7 @@ import 'package:softlightstudio/ui/theme.dart';
 
 /// Onboarding flow screen
 class OnboardingScreen extends StatefulWidget {
-  final VoidCallback onComplete;
-
-  const OnboardingScreen({super.key, required this.onComplete});
+  const OnboardingScreen({super.key});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -69,11 +67,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => const SubscriptionDialog(),
-    ).then((value) {
-      if (value == true) {
-        widget.onComplete();
-      }
-    });
+    );
+    // No need to do anything here - the dialog handles completing onboarding
+    // and the Consumer<SubscriptionState> in main.dart will automatically rebuild
   }
 
   @override
@@ -323,8 +319,8 @@ class SubscriptionDialog extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 420),
         decoration: BoxDecoration(
           color: isDark
-              ? SoftlightTheme.gray900.withAlpha(250)
-              : SoftlightTheme.white.withAlpha(250),
+              ? SoftlightTheme.gray900.withOpacity(0.98)
+              : SoftlightTheme.white.withOpacity(0.98),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray200,
@@ -407,7 +403,7 @@ class SubscriptionDialog extends StatelessWidget {
                       .setSubscriptionType(SubscriptionType.premium);
                   await subscriptionState.completeOnboarding();
                   if (context.mounted) {
-                    Navigator.of(context).pop(true);
+                    Navigator.of(context).pop();
                   }
                 },
               ),
@@ -431,7 +427,9 @@ class SubscriptionDialog extends StatelessWidget {
                       .setSubscriptionType(SubscriptionType.ads);
                   await subscriptionState.completeOnboarding();
                   if (context.mounted) {
-                    Navigator.of(context).pop(true);
+                    Navigator.of(context).pop();
+                  }
+                },
                   }
                 },
               ),
