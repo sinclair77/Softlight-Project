@@ -31,7 +31,6 @@ class _NothingIconButtonState extends State<NothingIconButton>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   bool _isHovered = false;
-  bool _isPressed = false;
   
   @override
   void initState() {
@@ -58,20 +57,17 @@ class _NothingIconButtonState extends State<NothingIconButton>
   
   void _handleTapDown(TapDownDetails details) {
     if (widget.onPressed != null) {
-      setState(() => _isPressed = true);
       _controller.forward();
       HapticFeedback.lightImpact();
     }
   }
   
   void _handleTapUp(TapUpDetails details) {
-    setState(() => _isPressed = false);
     _controller.reverse();
     widget.onPressed?.call();
   }
   
   void _handleTapCancel() {
-    setState(() => _isPressed = false);
     _controller.reverse();
   }
   
@@ -155,7 +151,6 @@ class _NothingChipState extends State<NothingChip>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
-  bool _isPressed = false;
   bool _isHovered = false;
   
   @override
@@ -183,20 +178,17 @@ class _NothingChipState extends State<NothingChip>
   
   void _handleTapDown(TapDownDetails details) {
     if (widget.onTap != null) {
-      setState(() => _isPressed = true);
       _controller.forward();
       HapticFeedback.selectionClick();
     }
   }
   
   void _handleTapUp(TapUpDetails details) {
-    setState(() => _isPressed = false);
     _controller.reverse();
     widget.onTap?.call();
   }
   
   void _handleTapCancel() {
-    setState(() => _isPressed = false);
     _controller.reverse();
   }
   

@@ -24,6 +24,7 @@ import 'package:softlightstudio/ui/widgets/rule_of_thirds_overlay.dart';
 import 'package:softlightstudio/ui/animations/animations.dart';
 import 'package:softlightstudio/ui/animations/loading_indicators.dart';
 import 'package:softlightstudio/ui/animations/interactive_widgets.dart';
+import 'package:softlightstudio/ui/onboarding/onboarding_flow.dart';
 import 'package:softlightstudio/util/ui_debug_flags.dart';
 
 class _PanelShortcut {
@@ -36,6 +37,13 @@ class _PanelShortcut {
   final String id;
   final IconData icon;
   final String label;
+}
+
+class _MobileKnobDef {
+  const _MobileKnobDef(this.param, {this.labelOverride});
+
+  final String param;
+  final String? labelOverride;
 }
 
 Future<void> main() async {
@@ -192,7 +200,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String _selectedPanel = 'develop'; // develop, color, effects, detail
-  bool _isMobilePanelOpen = false;
 
   static const List<_PanelShortcut> _panelShortcuts = [
     _PanelShortcut(id: 'presets', icon: Icons.auto_awesome, label: 'Presets'),
@@ -223,22 +230,140 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _showOnboarding() async {
+    await showOnboardingFlow(context);
+  }
+
   void _openMobilePanel(String panelId) {
     HapticFeedback.selectionClick();
     setState(() {
-      if (_selectedPanel == panelId && _isMobilePanelOpen) {
-        _isMobilePanelOpen = false;
-      } else {
-        _selectedPanel = panelId;
-        _isMobilePanelOpen = true;
-      }
+      _selectedPanel = panelId;
     });
+
+    final knobDefs = _mobileKnobDefinitionsForPanel(panelId);
+    final isCompactLayout = MediaQuery.of(context).size.width < 900;
+    if (isCompactLayout && knobDefs.isEmpty) {
+      _showCompactPanel(panelId);
+    }
   }
 
-  void _closeMobilePanel() {
-    if (_isMobilePanelOpen) {
-      setState(() => _isMobilePanelOpen = false);
-    }
+  void _showCompactPanel(String panelId) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final sheetIsDark =
+            Theme.of(sheetContext).brightness == Brightness.dark;
+        final state = sheetContext.read<EditorState>();
+        final accent = state.highlightColor;
+        final maxHeight = math.min(
+          MediaQuery.of(sheetContext).size.height * 0.8,
+          540.0,
+        );
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: sheetIsDark
+                  ? SoftlightTheme.gray900.withOpacity(0.95)
+                  : Colors.white.withOpacity(0.96),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: sheetIsDark
+                    ? SoftlightTheme.gray700
+                    : SoftlightTheme.gray200,
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(sheetIsDark ? 0.32 : 0.18),
+                  blurRadius: 24,
+                  offset: const Offset(0, 14),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                height: maxHeight,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.center,
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: sheetIsDark
+                              ? SoftlightTheme.gray600
+                              : SoftlightTheme.gray400,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: accent,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            _panelTitle(panelId),
+                            style: TextStyle(
+                              fontFamily: 'Courier New',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.3,
+                              color: sheetIsDark
+                                  ? SoftlightTheme.white
+                                  : SoftlightTheme.gray900,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: Icon(
+                              Icons.close_rounded,
+                              size: 20,
+                              color: sheetIsDark
+                                  ? SoftlightTheme.gray400
+                                  : SoftlightTheme.gray600,
+                            ),
+                            onPressed: () => Navigator.of(sheetContext).pop(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, thickness: 0.5),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                        child: _buildPanelBody(panelId, state, sheetIsDark),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -264,7 +389,8 @@ class _HomePageState extends State<HomePage> {
                         Expanded(
                           child: useCompactLayout
                               ? Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     Expanded(
                                       child: Padding(
@@ -274,27 +400,13 @@ class _HomePageState extends State<HomePage> {
                                           16,
                                           16,
                                         ),
-                                        child: _buildImageArea(editorState, isDark),
+                                        child: _buildImageArea(
+                                          editorState,
+                                          isDark,
+                                        ),
                                       ),
                                     ),
-                                    AnimatedSize(
-                                      duration: NothingDurations.standard,
-                                      curve: NothingCurves.entrance,
-                                      child: _isMobilePanelOpen
-                                          ? Padding(
-                                              padding: const EdgeInsets.fromLTRB(
-                                                12,
-                                                0,
-                                                12,
-                                                12,
-                                              ),
-                                              child: _buildMobilePanel(
-                                                editorState,
-                                                isDark,
-                                              ),
-                                            )
-                                          : const SizedBox.shrink(),
-                                    ),
+                                    const SizedBox(height: 12),
                                     _buildMobileBottomBar(isDark, accentColor),
                                   ],
                                 )
@@ -312,21 +424,28 @@ class _HomePageState extends State<HomePage> {
                                       const minPanelHeight = 200.0;
                                       const maxPanelHeight = 520.0;
 
-                                      if (!layoutConstraints.maxHeight.isFinite) {
+                                      if (!layoutConstraints
+                                          .maxHeight
+                                          .isFinite) {
                                         return Column(
-                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
                                           children: [
                                             Expanded(
-                                              child: _buildImageArea(editorState, isDark),
+                                              child: _buildImageArea(
+                                                editorState,
+                                                isDark,
+                                              ),
                                             ),
                                             const SizedBox(height: spacing),
                                             Align(
                                               alignment: Alignment.center,
                                               child: ConstrainedBox(
-                                                constraints: const BoxConstraints(
-                                                  maxWidth: 720,
-                                                  maxHeight: maxPanelHeight,
-                                                ),
+                                                constraints:
+                                                    const BoxConstraints(
+                                                      maxWidth: 720,
+                                                      maxHeight: maxPanelHeight,
+                                                    ),
                                                 child: _buildEditingPanel(
                                                   editorState,
                                                   isDark,
@@ -346,32 +465,48 @@ class _HomePageState extends State<HomePage> {
                                         maxPanelHeight,
                                         availableHeight * 0.35,
                                       );
-                                      double imageHeight = availableHeight - panelHeight;
+                                      double imageHeight =
+                                          availableHeight - panelHeight;
 
                                       if (imageHeight < minImageHeight) {
-                                        imageHeight = math.min(minImageHeight, availableHeight);
-                                        panelHeight = math.max(0.0, availableHeight - imageHeight);
+                                        imageHeight = math.min(
+                                          minImageHeight,
+                                          availableHeight,
+                                        );
+                                        panelHeight = math.max(
+                                          0.0,
+                                          availableHeight - imageHeight,
+                                        );
                                       }
 
                                       if (panelHeight < minPanelHeight &&
-                                          availableHeight > minImageHeight + minPanelHeight) {
+                                          availableHeight >
+                                              minImageHeight + minPanelHeight) {
                                         panelHeight = minPanelHeight;
-                                        imageHeight = availableHeight - panelHeight;
+                                        imageHeight =
+                                            availableHeight - panelHeight;
                                       }
 
                                       if (panelHeight <= 0.0) {
                                         return SizedBox(
                                           height: availableHeight,
-                                          child: _buildImageArea(editorState, isDark),
+                                          child: _buildImageArea(
+                                            editorState,
+                                            isDark,
+                                          ),
                                         );
                                       }
 
                                       return Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
                                         children: [
                                           SizedBox(
                                             height: imageHeight,
-                                            child: _buildImageArea(editorState, isDark),
+                                            child: _buildImageArea(
+                                              editorState,
+                                              isDark,
+                                            ),
                                           ),
                                           const SizedBox(height: spacing),
                                           SizedBox(
@@ -379,10 +514,11 @@ class _HomePageState extends State<HomePage> {
                                             child: Align(
                                               alignment: Alignment.center,
                                               child: ConstrainedBox(
-                                                constraints: const BoxConstraints(
-                                                  maxWidth: 720,
-                                                  maxHeight: maxPanelHeight,
-                                                ),
+                                                constraints:
+                                                    const BoxConstraints(
+                                                      maxWidth: 720,
+                                                      maxHeight: maxPanelHeight,
+                                                    ),
                                                 child: _buildEditingPanel(
                                                   editorState,
                                                   isDark,
@@ -408,7 +544,10 @@ class _HomePageState extends State<HomePage> {
                 left: 0,
                 right: 0,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       colors: [Color(0xFFE53935), Color(0xFFD81B60)],
@@ -447,116 +586,95 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildNothingHeader(bool isDark, Color accent) {
-    return Consumer<SubscriptionState>(
-      builder: (context, subscriptionState, child) {
-        return Container(
-          height: 64,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: isDark
-                  ? [SoftlightTheme.gray800, SoftlightTheme.gray900]
-                  : [SoftlightTheme.white, SoftlightTheme.gray50],
-            ),
-            border: Border(
-              bottom: BorderSide(
-                color: isDark ? SoftlightTheme.gray800 : SoftlightTheme.gray200,
-                width: 0.33,
-              ),
-            ),
+    return Container(
+      height: 64,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: isDark
+              ? [SoftlightTheme.gray800, SoftlightTheme.gray900]
+              : [SoftlightTheme.white, SoftlightTheme.gray50],
+        ),
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? SoftlightTheme.gray800 : SoftlightTheme.gray200,
+            width: 0.33,
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: accent,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'SOFTLIGHT STUDIO',
-                      style: TextStyle(
-                        fontFamily: 'Courier New',
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? SoftlightTheme.white
-                            : SoftlightTheme.gray900,
-                        letterSpacing: 2.8,
-                      ),
-                    ),
-                    if (subscriptionState.isPremium) ...[
-                      const SizedBox(width: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: SoftlightTheme.nothingRed.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: SoftlightTheme.nothingRed.withOpacity(0.4),
-                            width: 0.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.workspace_premium,
-                              size: 12,
-                              color: SoftlightTheme.nothingRed,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'PRO',
-                              style: TextStyle(
-                                fontFamily: 'Courier New',
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                color: SoftlightTheme.nothingRed,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-                const Spacer(),
-            // Export button
+                const SizedBox(width: 12),
+                Text(
+                  'SOFTLIGHT STUDIO',
+                  style: TextStyle(
+                    fontFamily: 'Courier New',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? SoftlightTheme.white
+                        : SoftlightTheme.gray900,
+                    letterSpacing: 2.8,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            IconButton(
+              icon: Icon(
+                Icons.add_photo_alternate_outlined,
+                size: 20,
+                color:
+                    isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
+              ),
+              tooltip: 'Import photo',
+              onPressed: () => context.read<EditorState>().loadFromPicker(),
+            ),
             NothingIconButton(
               icon: Icons.share_outlined,
               onPressed: () => _showExportDialog(context),
               tooltip: 'Export',
             ),
-            // Eye icon for viewing options
-            NothingIconButton(
-              icon: Icons.visibility_outlined,
+            IconButton(
+              icon: Icon(
+                Icons.lightbulb_outline,
+                size: 20,
+                color:
+                    isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
+              ),
+              onPressed: _showOnboarding,
+            ),
+            IconButton(
+              icon: Icon(
+                Icons.visibility_outlined,
+                size: 20,
+                color:
+                    isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
+              ),
               onPressed: _showViewingOptions,
               tooltip: 'Viewing Options',
             ),
-            // Settings button
             NothingIconButton(
               icon: Icons.settings_outlined,
               onPressed: () => _showSettingsDialog(context),
               tooltip: 'Settings',
             ),
-              ],
-            ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 
@@ -606,7 +724,8 @@ class _HomePageState extends State<HomePage> {
       final imageWidth = displayImage.width.toDouble();
       final imageHeight = displayImage.height.toDouble();
 
-      final baseContent = _showBeforeAfter && originalImage != null && processedImage != null
+      final baseContent =
+          _showBeforeAfter && originalImage != null && processedImage != null
           ? BeforeAfterComparison(
               originalImage: RawImage(image: originalImage, fit: BoxFit.cover),
               processedImage: RawImage(
@@ -618,8 +737,12 @@ class _HomePageState extends State<HomePage> {
 
       return LayoutBuilder(
         builder: (context, constraints) {
-          final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : imageWidth;
-          final maxHeight = constraints.maxHeight.isFinite ? constraints.maxHeight : imageHeight;
+          final maxWidth = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : imageWidth;
+          final maxHeight = constraints.maxHeight.isFinite
+              ? constraints.maxHeight
+              : imageHeight;
 
           double scale = math.min(
             maxWidth / imageWidth,
@@ -723,7 +846,10 @@ class _HomePageState extends State<HomePage> {
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 48,
+                ),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: maxWidth),
                   child: Column(
@@ -824,13 +950,15 @@ class _HomePageState extends State<HomePage> {
                           ),
                           _buildOnboardingTip(
                             icon: Icons.tune,
-                            text: 'Long-press a knob to enter fine adjustment mode.',
+                            text:
+                                'Long-press a knob to enter fine adjustment mode.',
                             isDark: isDark,
                             accent: accent,
                           ),
                           _buildOnboardingTip(
                             icon: Icons.visibility,
-                            text: 'Use the viewing options to toggle grids and before/after.',
+                            text:
+                                'Use the viewing options to toggle grids and before/after.',
                             isDark: isDark,
                             accent: accent,
                           ),
@@ -879,9 +1007,7 @@ class _HomePageState extends State<HomePage> {
                 fontFamily: 'Courier New',
                 fontSize: 11,
                 height: 1.4,
-                color: isDark
-                    ? SoftlightTheme.gray300
-                    : SoftlightTheme.gray700,
+                color: isDark ? SoftlightTheme.gray300 : SoftlightTheme.gray700,
               ),
             ),
           ),
@@ -944,87 +1070,9 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildMobilePanel(EditorState editorState, bool isDark) {
-    final accent = editorState.highlightColor;
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark
-            ? SoftlightTheme.gray900.withOpacity(0.95)
-            : Colors.white.withOpacity(0.96),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark ? SoftlightTheme.gray700 : SoftlightTheme.gray200,
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.32 : 0.18),
-            blurRadius: 20,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  _panelTitle(_selectedPanel),
-                  style: TextStyle(
-                    fontFamily: 'Courier New',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.4,
-                    color: isDark
-                        ? SoftlightTheme.white
-                        : SoftlightTheme.gray900,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  splashRadius: 20,
-                  icon: Icon(
-                    Icons.close_rounded,
-                    size: 20,
-                    color: isDark
-                        ? SoftlightTheme.gray400
-                        : SoftlightTheme.gray600,
-                  ),
-                  onPressed: _closeMobilePanel,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: NothingSwitcher(
-                duration: NothingDurations.standard,
-                child: SingleChildScrollView(
-                  key: ValueKey<String>('mobile-$_selectedPanel'),
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _buildPanelBody(_selectedPanel, editorState, isDark),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildMobileBottomBar(bool isDark, Color accent) {
+    final knobDefs = _mobileKnobDefinitionsForPanel(_selectedPanel);
+
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
@@ -1050,84 +1098,212 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: _panelShortcuts.map((shortcut) {
-                  final isSelected =
-                      _selectedPanel == shortcut.id && _isMobilePanelOpen;
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    children: _panelShortcuts.map((shortcut) {
+                      final isSelected = _selectedPanel == shortcut.id;
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: GestureDetector(
-                      onTap: () => _openMobilePanel(shortcut.id),
-                      child: AnimatedContainer(
-                        duration: NothingDurations.fast,
-                        curve: NothingCurves.entrance,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected ? accent : Colors.transparent,
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: isSelected
-                                ? accent
-                                : (isDark
-                                      ? SoftlightTheme.gray700
-                                      : SoftlightTheme.gray300),
-                            width: isSelected ? 1.0 : 0.7,
-                          ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: accent.withOpacity(0.35),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              shortcut.icon,
-                              size: 18,
-                              color: isSelected
-                                  ? SoftlightTheme.white
-                                  : (isDark
-                                        ? SoftlightTheme.gray300
-                                        : SoftlightTheme.gray600),
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: GestureDetector(
+                          onTap: () => _openMobilePanel(shortcut.id),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              shortcut.label.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontFamily: 'Courier New',
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1.2,
+                            decoration: BoxDecoration(
+                              color: isSelected ? accent : Colors.transparent,
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
                                 color: isSelected
-                                    ? SoftlightTheme.white
+                                    ? accent
                                     : (isDark
-                                          ? SoftlightTheme.gray400
-                                          : SoftlightTheme.gray700),
+                                          ? SoftlightTheme.gray700
+                                          : SoftlightTheme.gray300),
+                                width: isSelected ? 1.0 : 0.7,
                               ),
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: accent.withOpacity(0.35),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ]
+                                  : null,
                             ),
-                          ],
+                            child: Row(
+                              children: [
+                                Icon(
+                                  shortcut.icon,
+                                  size: 18,
+                                  color: isSelected
+                                      ? SoftlightTheme.white
+                                      : (isDark
+                                            ? SoftlightTheme.gray300
+                                            : SoftlightTheme.gray600),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  shortcut.label.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontFamily: 'Courier New',
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 1.2,
+                                    color: isSelected
+                                        ? SoftlightTheme.white
+                                        : (isDark
+                                              ? SoftlightTheme.gray400
+                                              : SoftlightTheme.gray700),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                if (knobDefs.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildMobilePanelKnobStrip(isDark, knobDefs),
+                ],
+              ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildMobilePanelKnobStrip(
+    bool isDark,
+    List<_MobileKnobDef> knobDefs,
+  ) {
+    if (knobDefs.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final state = context.read<EditorState>();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            _panelTitle(_selectedPanel),
+            style: TextStyle(
+              fontSize: 10,
+              fontFamily: 'Courier New',
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.3,
+              color: isDark ? SoftlightTheme.gray400 : SoftlightTheme.gray600,
+            ),
+          ),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: knobDefs
+                .map(
+                  (def) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: _buildMobileKnob(def, state),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  ParamDef? _lookupParamDefinition(String paramName) {
+    for (final group in const [
+      ParamDefinitions.develop,
+      ParamDefinitions.color,
+      ParamDefinitions.effects,
+      ParamDefinitions.detail,
+      ParamDefinitions.curves,
+    ]) {
+      for (final def in group) {
+        if (def.name == paramName) {
+          return def;
+        }
+      }
+    }
+    return null;
+  }
+
+  List<_MobileKnobDef> _mobileKnobDefinitionsForPanel(String panelId) {
+    switch (panelId) {
+      case 'develop':
+        return const [
+          _MobileKnobDef('exposure'),
+          _MobileKnobDef('contrast'),
+          _MobileKnobDef('highlights'),
+          _MobileKnobDef('shadows'),
+          _MobileKnobDef('whites'),
+          _MobileKnobDef('blacks'),
+          _MobileKnobDef('temperature'),
+          _MobileKnobDef('tint'),
+          _MobileKnobDef('saturation'),
+          _MobileKnobDef('vibrance'),
+        ];
+      case 'effects':
+        return const [
+          _MobileKnobDef('clarity'),
+          _MobileKnobDef('dehaze'),
+          _MobileKnobDef('vignetteAmount'),
+          _MobileKnobDef('vignetteFeather'),
+          _MobileKnobDef('grain'),
+          _MobileKnobDef('bloomIntensity'),
+          _MobileKnobDef('bloomRadius'),
+          _MobileKnobDef('fade'),
+          _MobileKnobDef('lift'),
+        ];
+      case 'detail':
+        return const [
+          _MobileKnobDef('sharpening'),
+          _MobileKnobDef('masking'),
+          _MobileKnobDef('noiseReduction'),
+          _MobileKnobDef('moireReduction'),
+          _MobileKnobDef('texture'),
+          _MobileKnobDef('chromaticAberration'),
+          _MobileKnobDef('lensDistortion'),
+        ];
+      case 'color':
+        return const [
+          _MobileKnobDef('hue'),
+          _MobileKnobDef('saturation'),
+          _MobileKnobDef('brightness'),
+          _MobileKnobDef('vibrance'),
+          _MobileKnobDef('temperature'),
+          _MobileKnobDef('tint'),
+          _MobileKnobDef('redShadows', labelOverride: 'RED SHADOWS'),
+          _MobileKnobDef('greenShadows', labelOverride: 'GREEN SHADOWS'),
+          _MobileKnobDef('blueShadows', labelOverride: 'BLUE SHADOWS'),
+          _MobileKnobDef('redHighlights', labelOverride: 'RED HIGHLIGHTS'),
+          _MobileKnobDef('greenHighlights', labelOverride: 'GREEN HIGHLIGHTS'),
+          _MobileKnobDef('blueHighlights', labelOverride: 'BLUE HIGHLIGHTS'),
+        ];
+      default:
+        return const [];
+    }
   }
 
   Widget _buildEditingTabs(bool isDark) {
@@ -1295,28 +1471,39 @@ class _HomePageState extends State<HomePage> {
       children: [
         _buildKnobSection(
           title: 'TONE',
-          knobs: [
-            _buildMobileKnob('EXP', 'exposure', -2.0, 2.0, editorState),
-            _buildMobileKnob('CON', 'contrast', -1.0, 1.0, editorState),
-            _buildMobileKnob('HI', 'highlights', -1.0, 1.0, editorState),
-            _buildMobileKnob('SH', 'shadows', -1.0, 1.0, editorState),
+          knobDefs: const [
+            _MobileKnobDef('exposure'),
+            _MobileKnobDef('contrast'),
+            _MobileKnobDef('highlights'),
+            _MobileKnobDef('shadows'),
+            _MobileKnobDef('whites'),
+            _MobileKnobDef('blacks'),
           ],
+          editorState: editorState,
           isDark: isDark,
         ),
         _buildKnobSection(
           title: 'COLOR',
-          knobs: [
-            _buildMobileKnob(
-              'TEMP',
-              'temperature',
-              2000.0,
-              12000.0,
-              editorState,
-            ),
-            _buildMobileKnob('TINT', 'tint', -1.0, 1.0, editorState),
-            _buildMobileKnob('SAT', 'saturation', -1.0, 1.0, editorState),
-            _buildMobileKnob('VIB', 'vibrance', -1.0, 1.0, editorState),
+          knobDefs: const [
+            _MobileKnobDef('temperature'),
+            _MobileKnobDef('tint'),
+            _MobileKnobDef('saturation'),
+            _MobileKnobDef('vibrance'),
+            _MobileKnobDef('hue'),
+            _MobileKnobDef('brightness'),
           ],
+          editorState: editorState,
+          isDark: isDark,
+        ),
+        _buildKnobSection(
+          title: 'STRUCTURE',
+          knobDefs: const [
+            _MobileKnobDef('clarity'),
+            _MobileKnobDef('dehaze'),
+            _MobileKnobDef('texture'),
+            _MobileKnobDef('lift'),
+          ],
+          editorState: editorState,
           isDark: isDark,
         ),
         const SizedBox(height: 12),
@@ -1330,18 +1517,26 @@ class _HomePageState extends State<HomePage> {
       children: [
         _buildKnobSection(
           title: 'EFFECTS',
-          knobs: [
-            _buildMobileKnob('CLARITY', 'clarity', -1.0, 1.0, editorState),
-            _buildMobileKnob('DEHAZE', 'dehaze', -1.0, 1.0, editorState),
-            _buildMobileKnob(
-              'VIGNETTE',
-              'vignetteAmount',
-              0.0,
-              1.0,
-              editorState,
-            ),
-            _buildMobileKnob('GRAIN', 'grain', 0.0, 1.0, editorState),
+          knobDefs: const [
+            _MobileKnobDef('clarity'),
+            _MobileKnobDef('dehaze'),
+            _MobileKnobDef('vignetteAmount'),
+            _MobileKnobDef('vignetteFeather'),
+            _MobileKnobDef('grain'),
+            _MobileKnobDef('bloomIntensity'),
+            _MobileKnobDef('bloomRadius'),
           ],
+          editorState: editorState,
+          isDark: isDark,
+        ),
+        _buildKnobSection(
+          title: 'TONE FX',
+          knobDefs: const [
+            _MobileKnobDef('fade'),
+            _MobileKnobDef('lift'),
+            _MobileKnobDef('sharpen'),
+          ],
+          editorState: editorState,
           isDark: isDark,
         ),
         const SizedBox(height: 12),
@@ -1355,12 +1550,23 @@ class _HomePageState extends State<HomePage> {
       children: [
         _buildKnobSection(
           title: 'DETAIL',
-          knobs: [
-            _buildMobileKnob('SHARP', 'sharpening', 0.0, 2.0, editorState),
-            _buildMobileKnob('NOISE', 'noiseReduction', 0.0, 1.0, editorState),
-            _buildMobileKnob('TEXTURE', 'texture', -1.0, 1.0, editorState),
-            _buildMobileKnob('BLOOM', 'bloomIntensity', 0.0, 1.0, editorState),
+          knobDefs: const [
+            _MobileKnobDef('sharpening'),
+            _MobileKnobDef('masking'),
+            _MobileKnobDef('noiseReduction'),
+            _MobileKnobDef('moireReduction'),
           ],
+          editorState: editorState,
+          isDark: isDark,
+        ),
+        _buildKnobSection(
+          title: 'OPTICS',
+          knobDefs: const [
+            _MobileKnobDef('texture'),
+            _MobileKnobDef('chromaticAberration'),
+            _MobileKnobDef('lensDistortion'),
+          ],
+          editorState: editorState,
           isDark: isDark,
         ),
         const SizedBox(height: 12),
@@ -1375,29 +1581,32 @@ class _HomePageState extends State<HomePage> {
         ColorBalancePanel(editorState: editorState),
         const SizedBox(height: 20),
         _buildKnobSection(
-          title: 'COLOR GRADING',
-          knobs: [
-            _buildMobileKnob('HUE', 'hue', -180.0, 180.0, editorState),
-            _buildMobileKnob('SAT', 'saturation', -1.0, 1.0, editorState),
-            _buildMobileKnob('BRT', 'brightness', -1.0, 1.0, editorState),
-            _buildMobileKnob('VIB', 'vibrance', -1.0, 1.0, editorState),
+          title: 'GLOBAL COLOR',
+          knobDefs: const [
+            _MobileKnobDef('hue'),
+            _MobileKnobDef('saturation'),
+            _MobileKnobDef('brightness'),
+            _MobileKnobDef('vibrance'),
+            _MobileKnobDef('temperature'),
+            _MobileKnobDef('tint'),
           ],
+          editorState: editorState,
           isDark: isDark,
         ),
         _buildKnobSection(
-          title: 'COLOR BALANCE',
-          knobs: [
-            _buildMobileKnob(
-              'TEMP',
-              'temperature',
-              2000.0,
-              12000.0,
-              editorState,
+          title: 'CHANNEL MIX',
+          knobDefs: const [
+            _MobileKnobDef('redShadows', labelOverride: 'RED SHADOWS'),
+            _MobileKnobDef('redHighlights', labelOverride: 'RED HIGHLIGHTS'),
+            _MobileKnobDef('greenShadows', labelOverride: 'GREEN SHADOWS'),
+            _MobileKnobDef(
+              'greenHighlights',
+              labelOverride: 'GREEN HIGHLIGHTS',
             ),
-            _buildMobileKnob('TINT', 'tint', -1.0, 1.0, editorState),
-            _buildMobileKnob('R/S', 'redShadows', -1.0, 1.0, editorState),
-            _buildMobileKnob('G/S', 'greenShadows', -1.0, 1.0, editorState),
+            _MobileKnobDef('blueShadows', labelOverride: 'BLUE SHADOWS'),
+            _MobileKnobDef('blueHighlights', labelOverride: 'BLUE HIGHLIGHTS'),
           ],
+          editorState: editorState,
           isDark: isDark,
         ),
         const SizedBox(height: 12),
@@ -1407,7 +1616,8 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildKnobSection({
     required String title,
-    required List<Widget> knobs,
+    required List<_MobileKnobDef> knobDefs,
+    required EditorState editorState,
     required bool isDark,
   }) {
     return Padding(
@@ -1428,106 +1638,54 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-          Row(children: knobs.map((knob) => Expanded(child: knob)).toList()),
+          Row(
+            children: knobDefs
+                .map(
+                  (def) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: _buildMobileKnob(def, editorState),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
           const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  Widget _buildMobileKnob(
-    String label,
-    String param,
-    double min,
-    double max,
-    EditorState editorState,
-  ) {
+  Widget _buildMobileKnob(_MobileKnobDef def, EditorState editorState) {
+    final baseDef = _lookupParamDefinition(def.param);
+    final label = (def.labelOverride ?? baseDef?.label ?? def.param)
+        .toUpperCase();
+    final min = baseDef?.min ?? -1.0;
+    final max = baseDef?.max ?? 1.0;
+    final defaultValue = baseDef?.defaultValue ?? 0.0;
+    final precision = baseDef?.precision ?? 2;
+    final unit = baseDef?.unit ?? '';
+
+    final knobParamDef = ParamDef(
+      name: def.param,
+      label: label,
+      min: min,
+      max: max,
+      defaultValue: defaultValue,
+      unit: unit,
+      precision: precision,
+    );
+
     return Consumer<EditorState>(
       builder: (context, state, child) {
-        double value;
-        switch (param) {
-          case 'exposure':
-            value = state.params.exposure;
-            break;
-          case 'contrast':
-            value = state.params.contrast;
-            break;
-          case 'highlights':
-            value = state.params.highlights;
-            break;
-          case 'shadows':
-            value = state.params.shadows;
-            break;
-          case 'temperature':
-            value = state.params.temperature;
-            break;
-          case 'tint':
-            value = state.params.tint;
-            break;
-          case 'saturation':
-            value = state.params.saturation;
-            break;
-          case 'vibrance':
-            value = state.params.vibrance;
-            break;
-          case 'clarity':
-            value = state.params.clarity;
-            break;
-          case 'dehaze':
-            value = state.params.dehaze;
-            break;
-          case 'vignetteAmount':
-            value = state.params.vignetteAmount;
-            break;
-          case 'grain':
-            value = state.params.grain;
-            break;
-          case 'sharpening':
-            value = state.params.sharpening;
-            break;
-          case 'noiseReduction':
-            value = state.params.noiseReduction;
-            break;
-          case 'texture':
-            value = state.params.texture;
-            break;
-          case 'bloomIntensity':
-            value = state.params.bloomIntensity;
-            break;
-          case 'hue':
-            value = state.params.hue;
-            break;
-          case 'brightness':
-            value = state.params.brightness;
-            break;
-          case 'redShadows':
-            value = state.params.redShadows;
-            break;
-          case 'greenShadows':
-            value = state.params.greenShadows;
-            break;
-          default:
-            value = 0.0;
-        }
-
-        // Create a parameter definition for the knob
-        final paramDef = ParamDef(
-          name: param,
-          label: label,
-          min: min,
-          max: max,
-          defaultValue: 0.0,
-          precision: 2,
-          unit: param == 'temperature' ? 'K' : '',
-        );
-
+        final value = state.getParamValue(def.param);
         return ParameterKnob(
-          paramDef: paramDef,
+          paramDef: knobParamDef,
           value: value,
-          onChanged: (newValue) => state.updateParam(param, newValue),
-          onReset: () => state.resetParam(param),
+          onChanged: (newValue) => state.updateParam(def.param, newValue),
+          onReset: () => state.resetParam(def.param),
           editorState: state,
-          size: 55.0, // Smaller for mobile
+          size: 68.0,
         );
       },
     );

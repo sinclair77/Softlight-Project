@@ -174,7 +174,7 @@ class _CategoryTab extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: SoftlightTheme.fastAnimation,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
               ? SoftlightTheme.accentRed
