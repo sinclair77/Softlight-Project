@@ -21,6 +21,7 @@ import 'package:softlightstudio/ui/histogram/draggable_histogram.dart';
 import 'package:softlightstudio/ui/widgets/animated_toggle.dart';
 import 'package:softlightstudio/ui/widgets/before_after_comparison.dart';
 import 'package:softlightstudio/ui/widgets/rule_of_thirds_overlay.dart';
+import 'package:softlightstudio/ui/animations/animations.dart';
 import 'package:softlightstudio/util/ui_debug_flags.dart';
 
 class _PanelShortcut {
@@ -275,8 +276,8 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                     ),
                                     AnimatedSize(
-                                      duration: const Duration(milliseconds: 260),
-                                      curve: Curves.easeOutCubic,
+                                      duration: NothingDurations.standard,
+                                      curve: NothingCurves.entrance,
                                       child: _isMobilePanelOpen
                                           ? Padding(
                                               padding: const EdgeInsets.fromLTRB(
@@ -992,10 +993,8 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 240),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
+              child: NothingSwitcher(
+                duration: NothingDurations.standard,
                 child: SingleChildScrollView(
                   key: ValueKey<String>('mobile-$_selectedPanel'),
                   physics: const BouncingScrollPhysics(),
@@ -1049,8 +1048,8 @@ class _HomePageState extends State<HomePage> {
                     child: GestureDetector(
                       onTap: () => _openMobilePanel(shortcut.id),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOutCubic,
+                        duration: NothingDurations.fast,
+                        curve: NothingCurves.entrance,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 8,
@@ -1178,10 +1177,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildEditingContent(EditorState editorState, bool isDark) {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 280),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
+    return NothingSwitcher(
+      duration: NothingDurations.standard,
       child: KeyedSubtree(
         key: ValueKey<String>(_selectedPanel),
         child: _buildPanelBody(_selectedPanel, editorState, isDark),
